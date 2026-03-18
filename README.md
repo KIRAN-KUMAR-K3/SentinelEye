@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:1a1f35,100:0d47a1&height=200&section=header&text=SentinelEye%20SIEM&fontSize=52&fontColor=79c0ff&fontAlignY=38&desc=SOC%20Operations%20Platform%20for%20Enterprise%20Log%20Analysis&descAlignY=58&descColor=8b949e&animation=fadeIn" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:1a1f35,100:0d47a1&height=220&section=header&text=SentinelEye%20SIEM&fontSize=56&fontColor=79c0ff&fontAlignY=38&desc=SOC%20Operations%20Platform%20%7C%20Indian%20Institute%20of%20Science%2C%20Bangalore&descAlignY=58&descColor=8b949e&animation=fadeIn" />
 
 <br/>
 
@@ -12,15 +12,17 @@
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat&logo=linux&logoColor=black)](https://linux.org)
 [![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=flat)]()
 [![Author](https://img.shields.io/badge/Author-KIRAN%20KUMAR%20K-79c0ff?style=flat&logo=github)](https://github.com/KIRAN-KUMAR-K3)
+[![IISc](https://img.shields.io/badge/Built%20at-IISc%20Bangalore-003087?style=flat)](https://iisc.ac.in)
+[![Team](https://img.shields.io/badge/Team-ISO%20Security-ff6b35?style=flat)]()
 
 <br/>
 
-> **A fully local, high-performance SIEM built for SOC analysts.**
-> **Ingests 45,000+ compressed log files, detects threats in real-time, and presents everything in a dark-mode analyst dashboard.**
+> **A fully local, high-performance SIEM built for real-world SOC operations.**
+> **45,437 compressed log files · 40M+ rows · 8 SOC views · 15 detection rules · Dark analyst dashboard.**
 
 <br/>
 
-[🚀 Quick Start](#-quick-start) · [🧠 Architecture](#-architecture) · [🔎 Detection Rules](#-detection-rules) · [📊 Dashboard](#-dashboard) · [📁 Project Structure](#-project-structure)
+[▶️ Installation](#%EF%B8%8F-installation--setup) · [🚀 How to Run](#-how-to-run-step-by-step) · [🖥️ Dashboard](#%EF%B8%8F-dashboard-views) · [🔎 Detection Rules](#-detection-rules) · [🔧 CLI Reference](#-cli-reference) · [🧠 Architecture](#-architecture)
 
 </div>
 
@@ -28,12 +30,12 @@
 
 ## 🛡️ What is SentinelEye?
 
-**SentinelEye** is a lightweight, purpose-built SIEM (Security Information and Event Management) platform designed for real-world SOC operations. It processes compressed log archives from enterprise network infrastructure — firewalls, DNS servers, RADIUS authenticators, and DHCP servers — and turns them into actionable threat intelligence.
+**SentinelEye** is a lightweight, purpose-built SIEM (Security Information and Event Management) platform developed by the **ISO Security Team** at the **Indian Institute of Science, Bangalore**. It processes compressed log archives from enterprise network infrastructure and turns raw log data into actionable threat intelligence.
 
-Built during an internship at **IISc Bangalore**, this project handles actual production log data from a Sophos XG/XGS enterprise firewall deployment — over **45,437 `.gz` files** spanning multiple log sources, generating **30M+ parsed rows** in the database.
+Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall deployment — **45,437 `.gz` files** across firewalls, DNS servers, RADIUS authenticators, and DHCP servers — ingesting **40M+ parsed rows** into a fully local SQLite database.
 
 ```
-🔥 45,437 compressed log files  |  30M+ rows ingested  |  15 detection rules  |  7 DB tables  |  1 SOC dashboard
+🔥 45,437 files  ·  40M+ rows  ·  15 rules  ·  8 SOC views  ·  30+ REST APIs  ·  100% local
 ```
 
 ---
@@ -42,190 +44,340 @@ Built during an internship at **IISc Bangalore**, this project handles actual pr
 
 | Feature | Description |
 |---------|-------------|
-| 🗜️ **Parallel Ingestion** | Multi-threaded `.gz` decompressor — processes 50k–200k rows/sec over NFS |
-| 🧠 **15 Detection Rules** | C2, DoS, Brute Force, Port Scan, DNS Tunneling, Data Exfiltration & more |
-| 📊 **Dark SOC Dashboard** | Flask + Chart.js dashboard with live charts, alert management, IP pivot |
-| 🔍 **IP Pivot / Hunt** | Click any IP → see all firewall, DNS, RADIUS, DHCP, and alert history instantly |
-| 📋 **Event Search** | Filter events by src/dst IP, action, log source, date range |
-| ✅ **Alert Lifecycle** | Rule generates alerts → analyst reviews → one-click ACK with attribution |
-| 💾 **Idempotent Ingest** | Already-processed files are skipped; only new files are loaded on re-run |
-| 📡 **Live Monitor** | `monitor.py` — real-time ingestion dashboard showing rows/sec, ETA, progress |
-| 🔧 **CLI-First** | Full `siem.py` CLI for scripting, automation, and headless server use |
+| 🗜️ **Smart Parallel Ingestion** | Worker threads decompress/parse · single writer thread commits · eliminates DB locking |
+| 🧠 **15 SOC Detection Rules** | C2/ATP, DoS, Brute Force, Port Scan, DNS Tunneling, Data Exfiltration, VPN attacks & more |
+| 🖥️ **8-View Dark SOC Dashboard** | Overview · Alerts · Firewall · DNS · Users · Threats · Network · Event Hunt |
+| 🔍 **IP Pivot Investigation** | Click any IP → 6-tab modal: Firewall / DNS / RADIUS / DHCP / Alerts / Threats |
+| 👤 **User Investigation** | Search username/email → full firewall, RADIUS, VPN, alert cross-history |
+| 📋 **Advanced Event Hunt** | 10-field search: IP, port, type, action, username, protocol, keyword, date range |
+| ✅ **Full Alert Lifecycle** | Auto-generate → Filter → Bulk-ACK with analyst name → Export CSV/JSON |
+| 🌐 **DNS Intelligence** | 40M+ query analysis, DGA/suspicious TLD detection, top clients and domains |
+| 📅 **Global Date Filter** | Apply date range across ALL 8 dashboard views simultaneously |
+| 📡 **Live Ingestion Monitor** | `monitor.py` — real-time rows/sec, ETA, per-source progress bar |
+| 💾 **Idempotent Ingest** | Already-processed files are auto-skipped — safe to re-run at any time |
+| 📊 **Full Export** | Alerts and events exportable as CSV or JSON from dashboard or CLI |
+| 🔒 **Secure by Design** | IP/MAC/date regex validation · parameterised SQL · threading.Lock on all writes |
 
 ---
 
-## 🗂️ Log Sources Supported
+## 🗂️ Log Sources
 
 ```
 /mnt/
-├── Firewall-Logs/
-│   ├── Firewall/                    ← Firewall rules (allowed/denied)    —  4,806 files
-│   ├── IPS/                         ← Intrusion Prevention signatures    —  1,600 files
-│   ├── Advanced_Threat_Protection/  ← C2 / ATP alerts                   —    792 files
-│   ├── Content_Filtering/           ← HTTP, App Filter, Web Filter       —  1,676 files
-│   ├── Anti_Virus/                  ← HTTP/FTP/SMTP AV hits              —  2,400 files
-│   ├── Anti_Spam/                   ← SMTP spam blocks                   —    800 files
-│   ├── Event/                       ← CLI, GUI, DHCP, IPSec, VPN, HA…   —  7,487 files
-│   ├── SD-WAN/                      ← SD-WAN profile/route/SLA           —  2,253 files
-│   ├── Web_Server_Protection/       ← WAF events                         —    829 files
-│   └── Mac_IP/                      ← MAC↔IP binding history             —  7,299 files
+├── Firewall-Logs/Firewall-Logs/
+│   ├── Firewall/                    ← Allow/Deny rules            —  4,806 files
+│   ├── IPS/                         ← Intrusion Prevention         —  1,600 files
+│   ├── Advanced_Threat_Protection/  ← C2 / ATP / Malware           —    792 files
+│   ├── Content_Filtering/           ← HTTP · App Filter · Web      —  1,676 files
+│   ├── Anti_Virus/                  ← HTTP/FTP/SMTP AV hits        —  2,400 files
+│   ├── Anti_Spam/                   ← SMTP spam blocks             —    800 files
+│   ├── Event/                       ← CLI/GUI/DHCP/IPSec/VPN/HA    —  7,487 files
+│   ├── SD-WAN/                      ← Profile/Route/SLA            —  2,253 files
+│   ├── Web_Server_Protection/       ← WAF events                   —    829 files
+│   └── Mac_IP/                      ← MAC↔IP binding history       —  7,299 files
 ├── iDNS-Logs/
-│   ├── idns1/                       ← BIND9 query log (primary)          —  3,401 files
-│   └── idns2/                       ← BIND9 query log (secondary)        —  3,167 files
+│   ├── idns1/                       ← BIND9 primary DNS            —  3,401 files
+│   └── idns2/                       ← BIND9 secondary DNS          —  3,167 files
 └── Radius-Logs/
-    ├── primary-radius/              ← FreeRADIUS auth                    —  2,874 files
-    ├── secondary-radius/            ← FreeRADIUS auth                    —  1,277 files
-    ├── primary-dhcp/                ← ISC dhcpd leases                   —  2,703 files
-    └── secondary-dhcp/             ← ISC dhcpd leases                   —  1,273 files
-                                                               ─────────────────────────
-                                                               Total:       45,437 files
+    ├── primary-radius/              ← FreeRADIUS auth              —  2,874 files
+    ├── secondary-radius/            ← FreeRADIUS auth              —  1,277 files
+    ├── primary-dhcp/                ← ISC dhcpd leases             —  2,703 files
+    └── secondary-dhcp/              ← ISC dhcpd leases             —  1,273 files
+                                                          ────────────────────────
+                                                          Total:      45,437 files
 ```
 
 ---
 
-## 🚀 Quick Start
+## ▶️ Installation & Setup
 
 ### Prerequisites
-
-```bash
-Python 3.10+    pip    NFS mount at /mnt (or edit config.py to change paths)
+```
+Python 3.10+   pip   NFS mount at /mnt   (edit config.py to change paths)
 ```
 
-### Install & Run
-
+### Clone and install
 ```bash
-# 1. Clone the repository
 git clone https://github.com/KIRAN-KUMAR-K3/SentinelEye.git
 cd SentinelEye
-
-# 2. Create virtualenv and install dependencies
-python -m venv venu && source venu/bin/activate
+python -m venv venu
+source venu/bin/activate
 pip install flask tabulate
-
-# 3. Initialise the SQLite database
-python siem.py init
-
-# 4. Ingest all log sources (parallel — tune --workers to your NFS speed)
-python siem.py ingest --source all --workers 8
-
-# 5. (Optional) Watch live ingestion progress in a second terminal
-python monitor.py
-
-# 6. Run all detection rules
-python siem.py analyze
-
-# 7. Launch the SOC dashboard
-python siem.py dashboard
-#  ➜  http://localhost:5000
 ```
 
-> 💡 **Tip:** The dashboard works on partial data — start it while ingestion is still running to see results in real time.
+---
+
+## 🚀 How to Run — Step by Step
+
+> ⚠️ **Critical rule:** Run **one ingestion command at a time**. Wait for `[+] Done` before running the next. Never press Ctrl+C during ingestion.
+
+### Step 1 — Initialise the database
+```bash
+python siem.py init
+```
+Expected output:
+```
+[+] Database ready at /home/iso/siem.db
+```
+
+---
+
+### Step 2 — Ingest log sources (one at a time)
+
+**Firewall** (largest — takes 1–3 hours depending on NFS speed):
+```bash
+python siem.py ingest --source firewall --workers 4
+```
+
+Wait for `[+] Done`, then **DNS** (~45–90 min):
+```bash
+python siem.py ingest --source dns --workers 4
+```
+
+Wait, then **RADIUS**:
+```bash
+python siem.py ingest --source radius --workers 4
+```
+
+Wait, then **DHCP**:
+```bash
+python siem.py ingest --source dhcp --workers 4
+```
+
+> 💡 Use `--workers 4` (not 8 or 16). More workers only helps decompression speed; the single writer thread is the real bottleneck. 4 workers is the sweet spot for stability.
+
+---
+
+### Step 3 — Watch live progress (open a second terminal)
+
+While ingestion runs, open a second terminal and run:
+```bash
+cd SentinelEye
+source venu/bin/activate
+python monitor.py
+```
+
+You will see:
+```
+╔══════════════════════════════════════════════════════╗
+║      SentinelEye — Live Ingestion Monitor            ║
+║      Indian Institute of Science | ISO Security      ║
+╠══════════════════════════════════════════════════════╣
+║  Files ingested :   4,200 / 45,437           9.2%   ║
+║  Progress       : [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  ║
+╠══════════════════════════════════════════════════════╣
+║  Firewall events:    4,812,330                       ║
+║  DNS queries    :            0                       ║
+║  RADIUS auth    :            0                       ║
+║  DHCP leases    :            0                       ║
+╠══════════════════════════════════════════════════════╣
+║  Total rows     :    4,812,330                       ║
+║  Ingest rate    :    85,000 rows/sec                 ║
+╚══════════════════════════════════════════════════════╝
+```
+
+---
+
+### Step 4 — Run detection rules
+
+After all sources finish ingesting:
+```bash
+python siem.py analyze
+```
+
+Expected output:
+```
+[+] Running detection rules …
+  [R001] C2 Communication          ...  12 hits →  12 new alerts
+  [R002] DoS Attack                ...   8 hits →   8 new alerts
+  [R003] IPS Signature Triggered   ...  45 hits →  45 new alerts
+  [R004] IP Spoofing Attempt       ...   6 hits →   6 new alerts
+  [R005] RADIUS Brute Force        ...   0 hits →   0 new alerts
+  [R006] Admin Login from External ...   2 hits →   2 new alerts
+  [R007] DNS Tunneling             ... 193 hits → 193 new alerts
+  [R008] Large Outbound Transfer   ...   5 hits →   5 new alerts
+  [R009] Port Scan Detected        ...  18 hits →  18 new alerts
+  [R014] Repeated Denies (Scanner) ...  24 hits →  24 new alerts
+  [R015] Suspicious DNS (DGA?)     ...  32 hits →  32 new alerts
+  ...
+[+] Total new alerts generated: 345
+```
+
+---
+
+### Step 5 — Start the dashboard
+
+```bash
+python siem.py dashboard
+```
+
+Then open your browser and go to: **`http://localhost:5000`**
+
+---
+
+### Step 6 — Verify everything is working
+
+```bash
+python siem.py report
+```
+
+Expected output:
+```
+╔══════════════════════════════════════════════════╗
+║     SentinelEye SIEM  —  Summary Report          ║
+║     Indian Institute of Science, Bangalore       ║
+╚══════════════════════════════════════════════════╝
+  Total events ingested  :   27,000,000+
+  DNS queries            :   40,000,000+
+  RADIUS auth records    :      500,000+
+  DHCP events            :      300,000+
+  Files ingested         :       45,437
+  Open alerts            :          345
+  Critical alerts        :           14
+  Denied connections     :   27,000,000+
+```
 
 ---
 
 ## 📡 Live Ingestion Monitor
 
-Run `monitor.py` in a separate terminal alongside ingestion to get a live view:
-
 ```
-╔══════════════════════════════════════════════════╗
-║         SentinelEye — Ingestion Monitor          ║
-╠══════════════════════════════════════════════════╣
-║  Files ingested :   8,200 / 45,437               ║
-║  Progress       : [██████████░░░░░░░░░░░░░░░░░░]  18.0% ║
-╠══════════════════════════════════════════════════╣
-║  Firewall events:    4,812,330                   ║
-║  DNS queries    :    8,922,000                   ║
-║  RADIUS auth    :      487,210                   ║
-║  DHCP leases    :      219,880                   ║
-╠══════════════════════════════════════════════════╣
-║  Total rows     :   14,441,420                   ║
-║  Ingest rate    :    92,400 rows/sec             ║
-║  Updated        :    14:21:51                    ║
-╚══════════════════════════════════════════════════╝
-  Refreshing every 5 seconds … (Ctrl+C to exit)
+╔══════════════════════════════════════════════════════╗
+║      SentinelEye — Live Ingestion Monitor            ║
+║      Indian Institute of Science | ISO Security      ║
+╠══════════════════════════════════════════════════════╣
+║  Files ingested :  18,200 / 45,437          40.0%   ║
+║  Progress       : [████████████░░░░░░░░░░░░░░░░░░]  ║
+╠══════════════════════════════════════════════════════╣
+║  Firewall events:   27,362,000  ✅                   ║
+║  DNS queries    :   40,018,000  ✅                   ║
+║  RADIUS auth    :      487,210                       ║
+║  DHCP leases    :      219,880                       ║
+║  MAC-IP maps    :    1,824,440                       ║
+╠══════════════════════════════════════════════════════╣
+║  Total rows     :   69,911,530                       ║
+║  Ingest rate    :    85,000 rows/sec                 ║
+║  Updated        :    14:21:51                        ║
+╚══════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 🖥️ Dashboard Preview
+## 🖥️ Dashboard Views
 
+All 8 views share a **global date range filter** in the top bar. The sidebar shows IISc / ISO branding. The alert badge auto-refreshes every 60 seconds.
+
+| # | View | Sidebar | What You Get |
+|---|------|---------|-------------|
+| 1 | **Overview** | 🏠 | 12 stat cards · stacked hourly event timeline · log type breakdown · DNS volume chart · top queried domains · recent open alerts |
+| 2 | **Alerts** | 🚨 | Full alert table · filter by severity/rule/IP/date/status · checkbox bulk-ACK · rule summary table · CSV/JSON export |
+| 3 | **Firewall** | 🔥 | Top denied/allowed source IPs · top destination IPs · top rules hit · protocols donut · port table with service names · top applications · bandwidth chart per host |
+| 4 | **DNS Analysis** | 🌐 | 40M+ query breakdown · top domains with client count · query type chart · suspicious TLD/DGA highlighted table |
+| 5 | **Users** | 👤 | Admin GUI/CLI login history · RADIUS user summary · brute-force failed login list · VPN/SSL sessions · username investigation search box |
+| 6 | **Threats** | 🛡️ | ATP/C2 events with threat names · IPS signatures · DoS attacks · top compromised/infected hosts |
+| 7 | **Network** | 🔗 | DHCP lease history · VPN/IPSec session table · MAC↔IP lookup by IP or MAC address |
+| 8 | **Event Hunt** | 🔍 | 10-field advanced search · src/dst IP · port · log type/source · action · username/email · protocol · keyword · date range · CSV/JSON export |
+
+### 🔍 IP Pivot — Click any IP anywhere
+Opens a 6-tab investigation modal instantly:
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ⚡ SIEM — SOC Dashboard                        ▶ Run Rules  ↻     │
-├──────────┬──────────┬──────────┬──────────┬──────────┬─────────────┤
-│  4.2M    │   38     │   12     │ 980,441  │  6,231   │   2,190     │
-│  EVENTS  │  ALERTS  │ CRITICAL │  DENIED  │   ATP    │    DoS      │
-├──────────┴──────────┴──────────┴──────────┴──────────┴─────────────┤
-│  Event Timeline (24h)             │  Log Type Breakdown             │
-│  ████████░░██████░░████████████  │  ◉ Firewall  ◎ Content  ◎ IPS  │
-├──────────────────┬────────────────┴────────────────────────────────┤
-│  Top Denied IPs  │  RADIUS Auth Results  │  Alerts by Severity     │
-│  ═══════════════ │  ════════════════════ │  ══════════════════════ │
-│  > 14.x.x.x 812 │  Accept  ██████  91%  │  Critical  ████  12     │
-│  > 45.x.x.x 540 │  Reject  ██      9%   │  High      ████  26     │
-│  > 91.x.x.x 312 │                       │  Medium    ██    8      │
-├──────────────────┴───────────────────────┴────────────────────────┤
-│  Open Alerts                                    [Filter ▼]         │
-│  ─────────────────────────────────────────────────────────────── │
-│  [12] C2 Communication     CRITICAL  10.134.x.x   [ACK]          │
-│  [11] External SSH         CRITICAL  45.33.x.x    [ACK]          │
-│  [9]  RADIUS Brute Force   HIGH      10.10.1.x    [ACK]          │
-└────────────────────────────────────────────────────────────────────┘
+[ Firewall Events ] [ DNS Queries ] [ RADIUS Auth ] [ DHCP Leases ] [ Alerts ] [ Threats ]
 ```
+Shows complete cross-source history for that IP in one place.
 
 ---
 
 ## 🔎 Detection Rules
 
-| ID | Rule Name | Severity | Logic |
-|----|-----------|----------|-------|
-| `R001` | C2 Communication | 🔴 Critical | ATP `log_subtype=Alert` events |
-| `R002` | DoS Attack | 🟠 High | `log_component=DoS Attack` with ≥5 events per source |
-| `R003` | IPS Signature Triggered | 🟠 High | IPS Warning/Critical/Notice priority |
-| `R004` | IP Spoofing Attempt | 🟠 High | `IP_Spoof_Prevention` component events |
-| `R005` | RADIUS Brute Force | 🟠 High | ≥10 RADIUS Rejects for same user in 5 min |
-| `R006` | Admin Login from External IP | 🔴 Critical | GUI/CLI admin login from non-RFC1918 address |
-| `R007` | DNS Tunneling | 🟠 High | >200 DNS queries/min from a single host |
-| `R008` | Large Outbound Transfer | 🟡 Medium | Single session sending >100 MB outbound |
+| ID | Rule Name | Severity | Trigger Logic |
+|----|-----------|----------|---------------|
+| `R001` | C2 Communication | 🔴 Critical | ATP log_type events with Alert/Blocked subtype |
+| `R002` | DoS Attack | 🟠 High | `log_component` contains DoS · ≥5 events same source |
+| `R003` | IPS Signature Triggered | 🟠 High | IPS log_type at Warning/Critical/Notice priority |
+| `R004` | IP Spoofing Attempt | 🟠 High | `log_component` contains IP Spoof |
+| `R005` | RADIUS Brute Force | 🟠 High | ≥10 RADIUS Rejects for same user within 5 minutes |
+| `R006` | Admin Login from External IP | 🔴 Critical | GUI/CLI login from non-RFC1918 IP address |
+| `R007` | DNS Tunneling | 🟠 High | >5000 DNS queries/min from a single host |
+| `R008` | Large Outbound Transfer | 🟡 Medium | Single allowed session sending >100 MB outbound |
 | `R009` | Port Scan Detected | 🟠 High | >20 distinct destination ports in 60 seconds |
-| `R010` | P2P / Torrent Traffic | 🟢 Low | App filter blocking BitTorrent/P2P clients |
-| `R011` | Antivirus / Malware Alert | 🟠 High | AV detection via HTTP/FTP/SMTP protocols |
-| `R012` | VPN Brute Force | 🟠 High | ≥5 SSL-VPN/Portal auth failures in 10 min |
-| `R013` | External SSH to Firewall | 🔴 Critical | TCP/22 to appliance from non-private IP |
-| `R014` | Repeated Denies (Scanner) | 🟡 Medium | External IP with >500 deny events total |
-| `R015` | Suspicious DNS (DGA?) | 🟡 Medium | Long labels / suspicious TLDs (.xyz .tk .ml…) |
+| `R010` | P2P / Torrent Traffic | 🟢 Low | Application filter blocking BitTorrent/P2P |
+| `R011` | Antivirus / Malware Alert | 🟠 High | AV detection via HTTP/FTP/SMTP with threat name |
+| `R012` | VPN Brute Force | 🟠 High | ≥5 SSL-VPN/Portal auth failures in 10 minutes |
+| `R013` | External SSH to Firewall | 🔴 Critical | TCP/22 to appliance from non-RFC1918 IP |
+| `R014` | Repeated Denies — Scanner | 🟡 Medium | External IP accumulating >500 deny events |
+| `R015` | Suspicious DNS — DGA? | 🟡 Medium | Queries to .xyz .tk .ml .cf .pw or hostname length >50 |
+
+---
+
+## 🧩 Adding Custom Detection Rules
+
+```python
+# Step 1 — Add your function to rules/definitions.py
+
+def r016_suspicious_useragent(conn):
+    """Detect scanning tools by user-agent strings in firewall messages."""
+    rows = _rows(conn, """
+        SELECT id, src_ip, url, ts
+        FROM   events
+        WHERE  message LIKE '%masscan%'
+           OR  message LIKE '%nmap%'
+           OR  message LIKE '%python-requests%'
+           OR  message LIKE '%curl%'
+    """)
+    return [{
+        "src_ip":      r["src_ip"] or "",
+        "dst_ip":      "",
+        "username":    "",
+        "description": f"Scanning tool detected from {r['src_ip']} → {r['url'] or '?'}",
+        "event_ids":   [r["id"]],
+    } for r in rows]
+
+
+# Step 2 — Register it in the RULES list at the bottom of the file
+{"id": "R016", "name": "Suspicious User-Agent", "severity": "Medium", "fn": r016_suspicious_useragent},
+```
+
+Then run `python siem.py analyze` to execute your new rule.
 
 ---
 
 ## 🧠 Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                  NFS Mount (/mnt)  — 45,437 .gz files           │
-│   Firewall .gz   DNS .gz   RADIUS .gz   DHCP .gz   Mac_IP .gz  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                  ┌────────▼────────┐
-                  │   Ingester      │  ThreadPoolExecutor (8 workers)
-                  │  ingest/        │  ─ Sophos KV syslog parser
-                  │  parsers.py     │  ─ BIND9 query log parser
-                  │  ingester.py    │  ─ FreeRADIUS detail parser
-                  └────────┬────────┘  ─ ISC dhcpd log parser
-                           │           ─ MAC-IP binding parser
-                  ┌────────▼────────┐
-                  │   SQLite DB     │  WAL mode · 7 tables · indexed
-                  │   ~/siem.db     │  events · dns_queries · radius_auth
-                  │   30M+ rows     │  dhcp_leases · mac_ip_map
-                  │                 │  alerts · ingested_files
-                  └────┬───────┬────┘
-                       │       │
-          ┌────────────▼─┐  ┌──▼──────────────┐
-          │ Rule Engine  │  │  Flask Dashboard │
-          │ rules/       │  │  dashboard/      │
-          │ 15 rules     │  │  12 REST APIs    │
-          │ → alerts     │  │  + IP pivot      │
-          └──────────────┘  └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│               NFS Mount (/mnt) — 45,437 .gz files                   │
+│   Firewall .gz  DNS .gz  RADIUS .gz  DHCP .gz  Mac_IP .gz           │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+              ┌────────────────▼──────────────────┐
+              │         Ingestion Engine           │
+              │  N parser threads (decompress)     │
+              │     ↓  rows via queue  ↓           │
+              │  1 writer thread (DB commits)      │  ← Zero locking
+              │  ingest/ingester.py                │
+              │  ingest/parsers.py (5 parsers)     │
+              └────────────────┬──────────────────┘
+                               │
+              ┌────────────────▼──────────────────┐
+              │          SQLite Database           │
+              │  ~/siem.db  ·  WAL mode            │
+              │  7 tables  ·  all indexed          │
+              │                                    │
+              │  events        dns_queries         │
+              │  radius_auth   dhcp_leases         │
+              │  mac_ip_map    alerts              │
+              │  ingested_files                    │
+              └──────────────┬──────────┬──────────┘
+                             │          │
+            ┌────────────────▼─┐  ┌─────▼──────────────────┐
+            │  Rule Engine     │  │  Flask Dashboard        │
+            │  rules/          │  │  30+ REST API endpoints │
+            │  15 SQL rules    │  │  8 SOC views            │
+            │  dedup + alerts  │  │  IP pivot modal         │
+            └──────────────────┘  │  User investigation     │
+                                  │  Global date filter     │
+                                  │  CSV / JSON export      │
+                                  └─────────────────────────┘
 ```
 
 ---
@@ -235,26 +387,26 @@ Run `monitor.py` in a separate terminal alongside ingestion to get a live view:
 ```
 SentinelEye/
 │
-├── siem.py                  ← CLI entry point (init/ingest/analyze/dashboard/query/alerts/report)
-├── config.py                ← All paths, thresholds, and settings
-├── monitor.py               ← Live ingestion progress dashboard
+├── siem.py                       ← CLI: init · ingest · analyze · dashboard · query · alerts · report
+├── config.py                     ← All paths, thresholds, worker counts
+├── monitor.py                    ← Live ingestion progress (rows/sec, ETA, per-source)
 ├── requirements.txt
 │
 ├── db/
-│   └── schema.py            ← SQLite DDL + all data-access helpers
+│   └── schema.py                 ← SQLite DDL · 7 tables · threading.Lock · retry logic
 │
 ├── ingest/
-│   ├── parsers.py           ← 5 log format parsers (Sophos KV, BIND9, RADIUS, DHCP, MAC-IP)
-│   └── ingester.py          ← Parallel file discovery + ingestion engine
+│   ├── parsers.py                ← 5 parsers: Sophos XG KV · BIND9 · FreeRADIUS · ISC DHCP · MAC-IP
+│   └── ingester.py               ← Queue-based single-writer ingestion engine
 │
 ├── rules/
-│   ├── definitions.py       ← 15 SOC detection rules (SQL-based)
-│   └── engine.py            ← Rule runner + dedup + alert persistence
+│   ├── definitions.py            ← 15 SOC detection rules (all SQL-based, deduplicated)
+│   └── engine.py                 ← Rule runner · alert persistence · dedup check
 │
 └── dashboard/
-    ├── app.py               ← Flask app + 12 REST API endpoints
+    ├── app.py                    ← Flask · 30+ secure endpoints · input validation
     └── templates/
-        └── index.html       ← Dark SOC dashboard (Bootstrap 5 + Chart.js)
+        └── index.html            ← Dark dashboard · Bootstrap 5 · Chart.js · 8 views
 ```
 
 ---
@@ -262,42 +414,54 @@ SentinelEye/
 ## 🔧 CLI Reference
 
 ```bash
-# Database
+# ── Database ─────────────────────────────────────────────────────────────────
 python siem.py init
 
-# Ingestion
-python siem.py ingest --source all              # all 45k files
-python siem.py ingest --source firewall         # firewall only
-python siem.py ingest --source dns              # DNS only
-python siem.py ingest --workers 16              # tune parallelism
-python siem.py ingest --since 2025-01-01        # incremental update
-python siem.py ingest --dry-run                 # preview without loading
+# ── Ingestion (always one source at a time) ───────────────────────────────────
+python siem.py ingest --source firewall --workers 4
+python siem.py ingest --source dns      --workers 4
+python siem.py ingest --source radius   --workers 4
+python siem.py ingest --source dhcp     --workers 4
 
-# Live monitor (run in a separate terminal during ingestion)
+python siem.py ingest --source firewall --since 2025-04-01   # incremental update
+python siem.py ingest --source firewall --dry-run            # preview files only
+
+# ── Live monitor (separate terminal, runs alongside ingestion) ────────────────
 python monitor.py
 
-# Detection
-python siem.py analyze                          # all 15 rules
-python siem.py analyze --rules R001 R006 R013   # specific rules
+# ── Detection rules ───────────────────────────────────────────────────────────
+python siem.py analyze                          # run all 15 rules
+python siem.py analyze --rules R001 R006 R013   # run specific rules only
 
-# Dashboard
-python siem.py dashboard --port 5000
-python siem.py dashboard --debug
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+python siem.py dashboard                        # http://localhost:5000
+python siem.py dashboard --port 8080            # custom port
+python siem.py dashboard --debug                # Flask debug mode
 
-# Query Events
+# ── Query events (CLI) ────────────────────────────────────────────────────────
 python siem.py query --src-ip 10.217.51.86
-python siem.py query --action Deny --since 2025-03-01
+python siem.py query --action Deny --since 2025-03-01 --limit 500
 python siem.py query --type ATP --format json
-python siem.py query --type IPS --format csv > ips.csv
+python siem.py query --type IPS --format csv > ips_events.csv
 
-# Alerts
-python siem.py alerts                           # all open alerts
-python siem.py alerts --severity Critical       # critical only
-python siem.py alerts --unacked                 # unacknowledged
-python siem.py alerts --ack 42 --ack-by analyst # acknowledge
+# ── Manage alerts (CLI) ───────────────────────────────────────────────────────
+python siem.py alerts                             # all open alerts
+python siem.py alerts --severity Critical         # critical only
+python siem.py alerts --unacked                   # unacknowledged only
+python siem.py alerts --ack 42 --ack-by kiran     # acknowledge alert #42
 
-# Report
-python siem.py report                           # summary stats to stdout
+# ── Summary report ────────────────────────────────────────────────────────────
+python siem.py report
+
+# ── Quick DB health check ─────────────────────────────────────────────────────
+python3 -c "
+import sqlite3, os
+conn = sqlite3.connect(os.path.expanduser('~/siem.db'))
+for t in ['events','dns_queries','radius_auth','dhcp_leases','ingested_files','alerts']:
+    n = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+    print(f'  {t:25s}: {n:>12,}')
+conn.close()
+"
 ```
 
 ---
@@ -305,58 +469,43 @@ python siem.py report                           # summary stats to stdout
 ## ⚙️ Configuration (`config.py`)
 
 ```python
-MOUNT_BASE      = "/mnt"          # NFS mount point
-DB_PATH         = "~/siem.db"     # SQLite database location
-MAX_WORKERS     = 8               # parallel ingestion threads
-BATCH_SIZE      = 2000            # rows per DB commit
-SKIP_INGESTED   = True            # skip already-processed files
+# NFS mount point where .gz files are stored
+MOUNT_BASE = "/mnt"
 
-# Detection thresholds
-BRUTE_FORCE_THRESHOLD       = 10          # RADIUS rejects in window
-PORT_SCAN_THRESHOLD         = 20          # distinct dst ports in 60s
-DNS_TUNNEL_QUERY_THRESHOLD  = 200         # queries/min per host
-LARGE_TRANSFER_BYTES        = 100_000_000 # 100 MB outbound threshold
+# SQLite database path (~/ expands to home directory)
+DB_PATH = os.path.expanduser("~/siem.db")
+
+# Ingestion settings
+# Keep workers at 4 — more workers don't help (single writer bottleneck)
+MAX_WORKERS   = 4      # parallel decompression threads
+BATCH_SIZE    = 1000   # rows per DB commit
+SKIP_INGESTED = True   # skip files already in ingested_files table
+
+# Dashboard
+DASHBOARD_HOST = "0.0.0.0"
+DASHBOARD_PORT = 5000
+
+# Detection rule thresholds — tune to your network
+BRUTE_FORCE_WINDOW_SEC     = 300          # 5 min window for R005
+BRUTE_FORCE_THRESHOLD      = 10           # RADIUS rejects before alert
+PORT_SCAN_THRESHOLD        = 20           # distinct dst_port count for R009
+DNS_TUNNEL_QUERY_THRESHOLD = 5000         # queries/min for R007 (IISc DNS is high-volume)
+LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 ```
 
 ---
 
 ## 🗄️ Database Schema
 
-| Table | Real Rows | Key Columns |
-|-------|-----------|-------------|
-| `events` | ~10M+ | `ts, log_type, log_component, src_ip, dst_ip, action, threat_name` |
-| `dns_queries` | **8,922,000+** ✅ | `ts, client_ip, query_name, query_type, server_ip` |
-| `radius_auth` | ~500k+ | `ts, username, nas_ip, client_ip, result` |
-| `dhcp_leases` | ~300k+ | `ts, event_type, ip_address, mac_address, hostname` |
-| `mac_ip_map` | ~2M+ | `ts, mac_address, ip_address, interface` |
-| `alerts` | varies | `rule_id, severity, src_ip, description, acknowledged` |
-| `ingested_files` | 45,437 | `filepath, log_source, rows_loaded, loaded_at` |
-
----
-
-## 🧩 Adding Custom Rules
-
-```python
-# 1. Add to rules/definitions.py
-def r016_suspicious_useragent(conn):
-    rows = _rows(conn, """
-        SELECT id, src_ip, url, ts
-        FROM   events
-        WHERE  message LIKE '%curl%'
-           OR  message LIKE '%python-requests%'
-           OR  message LIKE '%masscan%'
-    """)
-    return [{
-        "src_ip":      r["src_ip"],
-        "dst_ip":      "",
-        "username":    "",
-        "description": f"Suspicious user-agent from {r['src_ip']} → {r['url']}",
-        "event_ids":   [r["id"]],
-    } for r in rows]
-
-# 2. Register in RULES list
-{"id": "R016", "name": "Suspicious User-Agent", "severity": "Medium", "fn": r016_suspicious_useragent},
-```
+| Table | Verified Rows | Key Columns |
+|-------|---------------|-------------|
+| `events` | 27,362,000+ ✅ | `ts · log_type · log_component · src_ip · dst_ip · action · threat_name · username` |
+| `dns_queries` | 40,018,000+ ✅ | `ts · client_ip · query_name · query_type · server_ip` |
+| `radius_auth` | ~500,000+ | `ts · username · nas_ip · client_ip · result` |
+| `dhcp_leases` | ~300,000+ | `ts · event_type · ip_address · mac_address · hostname` |
+| `mac_ip_map` | ~2,000,000+ | `ts · mac_address · ip_address · interface` |
+| `alerts` | 345+ ✅ | `rule_id · severity · src_ip · description · acknowledged · ack_by` |
+| `ingested_files` | 45,437 | `filepath · log_source · rows_loaded · loaded_at` |
 
 ---
 
@@ -365,33 +514,53 @@ def r016_suspicious_useragent(conn):
 | Metric | Value |
 |--------|-------|
 | Log files processed | **45,437** `.gz` archives |
-| DNS rows loaded (verified live) | **8,922,000+** |
-| Estimated total rows | **30M+** across all sources |
-| Ingestion speed | 50,000 – 200,000 rows/sec |
-| Workers | 8 threads (configurable up to 16+) |
-| DB engine | SQLite WAL (tested beyond 50M rows) |
-| Dashboard response | < 500ms (all queries index-backed) |
+| Firewall events (verified live) | **27,362,000+** ✅ |
+| DNS queries (verified live) | **40,018,000+** ✅ |
+| Alerts generated (first run) | **345+** ✅ |
+| Ingestion speed | 50,000 – 100,000 rows/sec over NFS |
+| Worker threads | 4 (stable) — 8–12 (faster NFS) |
+| DB engine | SQLite WAL · tested beyond 70M rows |
+| Dashboard API response | < 500ms — all queries index-backed |
+| REST API endpoints | 30+ secure endpoints |
 
 ---
 
-## 🔒 Security Notes
+## 🔒 Security & Coding Standards
 
-> **This tool is intended for authorised use on your own infrastructure only.**
-> All log data stays **fully local** — nothing is sent to any external service.
-> The SQLite database stores parsed events; raw log files are never modified.
+- All REST API inputs validated — IP regex, MAC regex, ISO date check, string length limits
+- All SQL uses parameterised queries — zero SQL injection surface
+- `threading.Lock()` on all write operations — zero DB write contention
+- Retry logic (5 attempts with backoff) on every DB write
+- All log data stays **100% local** — nothing sent to external services
+- Raw `.gz` files are **read-only** — never modified
+
+---
+
+## ⚠️ Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `database is locked` | Multiple processes writing simultaneously | `pkill -9 -f python` → `rm ~/siem.db-wal ~/siem.db-shm` → restart |
+| `database disk image is malformed` | Ctrl+C during write corrupted the DB | `rm ~/siem.db ~/siem.db-wal ~/siem.db-shm` → `python siem.py init` → re-ingest |
+| `DNS/RADIUS/DHCP = 0` | DB was locked when those sources ran | Re-run: `python siem.py ingest --source dns --workers 4` |
+| `Files ingested = 0` | `mark_file_ingested` failed silently | Fixed in FINAL version — upgrade `db/schema.py` |
+| `acknowledged_alert` column error | Phantom column in old R001 rule | Fixed in FINAL version — upgrade `rules/definitions.py` |
+| Dashboard shows 0 firewall events | Still ingesting DNS (loads first alphabetically) | Wait for firewall ingest to complete |
+| Ingestion very slow | NFS latency or too many workers | Reduce to `--workers 2`, check NFS mount speed |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions, new detection rules, and parser improvements are welcome!
-
 ```bash
-# Fork → Clone → Branch → PR
 git checkout -b feature/new-rule
+# → add rule function to rules/definitions.py
+# → register {"id": "R016", "name": "...", "severity": "...", "fn": ...} in RULES
+# → test with: python siem.py analyze --rules R016
+# → open a pull request
 ```
 
-Please ensure any new detection rule includes: rule ID, name, severity, a clear docstring, and deduplication logic.
+Each rule must include: unique ID, descriptive name, severity level, clear docstring, and deduplication logic.
 
 ---
 
@@ -409,6 +578,10 @@ Free to use, modify, and distribute with attribution.
 **Built with 🛡️ for the SOC by [KIRAN KUMAR K](https://github.com/KIRAN-KUMAR-K3)**
 
 *Information Security Intern @ IISc Bangalore · Ethical Hacker · VAPT*
+
+*Developed under the ISO Security Team — Indian Institute of Science, Bangalore*
+
+<br/>
 
 [![GitHub](https://img.shields.io/badge/GitHub-KIRAN--KUMAR--K3-181717?style=flat&logo=github)](https://github.com/KIRAN-KUMAR-K3)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-kiran--kumar--k3-0077B5?style=flat&logo=linkedin)](https://linkedin.com/in/kiran-kumar-k3)

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIEM – SOC Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  body { background:#0d1117; color:#c9d1d9; font-family:'Segoe UI',sans-serif; }
+  .navbar { background:#161b22!important; border-bottom:1px solid #30363d; }
+  .card  { background:#161b22; border:1px solid #30363d; border-radius:8px; }
+  .card-header { background:#21262d; border-bottom:1px solid #30363d; font-weight:600; font-size:.85rem; letter-spacing:.05em; text-transform:uppercase; }
+  .stat-card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:1rem 1.25rem; text-align:center; }
+  .stat-val  { font-size:2rem; font-weight:700; line-height:1; }
+  .stat-lbl  { font-size:.75rem; color:#8b949e; margin-top:.25rem; text-transform:uppercase; letter-spacing:.05em; }
+  .badge-Critical { background:#da3633; }
+  .badge-High     { background:#e3b341; color:#000; }
+  .badge-Medium   { background:#388bfd; }
+  .badge-Low      { background:#3fb950; color:#000; }
+  table.table { color:#c9d1d9; font-size:.83rem; }
+  table.table th { color:#8b949e; font-weight:500; border-color:#30363d; }
+  table.table td { border-color:#21262d; vertical-align:middle; }
+  .table-hover tbody tr:hover { background:#1f2937!important; cursor:pointer; }
+  input.form-control, select.form-select {
+    background:#0d1117; color:#c9d1d9; border:1px solid #30363d;
+  }
+  input.form-control:focus, select.form-select:focus {
+    background:#0d1117; color:#c9d1d9; border-color:#388bfd; box-shadow:none;
+  }
+  .btn-outline-info  { color:#79c0ff; border-color:#388bfd; }
+  .btn-outline-info:hover { background:#388bfd; color:#fff; }
+  #ipModal .modal-content { background:#161b22; color:#c9d1d9; border:1px solid #30363d; }
+  pre { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:1rem; font-size:.78rem; color:#c9d1d9; max-height:300px; overflow:auto; }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#0d1117; }
+  ::-webkit-scrollbar-thumb { background:#30363d; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="navbar navbar-dark px-4 py-2 mb-4">
+  <span class="navbar-brand fw-bold fs-5">⚡ SIEM — SOC Dashboard</span>
+  <div class="d-flex gap-2 align-items-center">
+    <span id="clock" class="text-secondary small"></span>
+    <button class="btn btn-sm btn-outline-warning" onclick="runRules()">▶ Run Rules</button>
+    <button class="btn btn-sm btn-outline-info" onclick="location.reload()">↻ Refresh</button>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+<!-- ── Stat cards ── -->
+<div class="row g-3 mb-4">
+  {% set cards = [
+    ("total_events",   stats.total_events,   "Total Events",      "text-info"),
+    ("open_alerts",    stats.open_alerts,    "Open Alerts",       "text-warning"),
+    ("critical_alerts",stats.critical_alerts,"Critical Alerts",   "text-danger"),
+    ("denied_events",  stats.denied_events,  "Denied Connections","text-danger"),
+    ("atp_events",     stats.atp_events,     "ATP / Threat",      "text-danger"),
+    ("ips_events",     stats.ips_events,     "IPS Events",        "text-warning"),
+    ("dos_events",     stats.dos_events,     "DoS Attacks",       "text-danger"),
+    ("total_dns",      stats.total_dns,      "DNS Queries",       "text-primary"),
+    ("radius_rejects", stats.radius_rejects, "RADIUS Rejects",    "text-warning"),
+    ("files_ingested", stats.files_ingested, "Files Ingested",    "text-secondary"),
+  ] %}
+  {% for id, val, lbl, cls in cards %}
+  <div class="col-6 col-md-3 col-xl-2">
+    <div class="stat-card">
+      <div class="stat-val {{ cls }}">{{ "{:,}".format(val) }}</div>
+      <div class="stat-lbl">{{ lbl }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Row 1: Hourly timeline + Action breakdown ── -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">Event Timeline (24h)</div>
+      <div class="card-body" style="height:220px;">
+        <canvas id="chartHourly"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">Log Types</div>
+      <div class="card-body" style="height:220px;">
+        <canvas id="chartLogTypes"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 2: Top Denied SrcIP + Top Dst + RADIUS ── -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Top Denied Source IPs</div>
+      <div class="card-body" style="height:250px;">
+        <canvas id="chartTopSrc"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Top Destination IPs</div>
+      <div class="card-body" style="height:250px;">
+        <canvas id="chartTopDst"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">RADIUS Auth Results</div>
+      <div class="card-body" style="height:250px;">
+        <canvas id="chartRadius"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 3: Alerts severity + Top DNS ── -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-header">Alerts by Severity</div>
+      <div class="card-body" style="height:220px;">
+        <canvas id="chartAlertSev"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Top DNS Clients</div>
+      <div class="card-body" style="height:220px;">
+        <canvas id="chartDnsClients"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Top Queried Domains</div>
+      <div class="card-body" style="height:220px;overflow-y:auto;">
+        <table class="table table-sm mb-0" id="tblDomains">
+          <thead><tr><th>Domain</th><th class="text-end">Count</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Alerts table ── -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Open Alerts</span>
+        <div class="d-flex gap-2">
+          <select class="form-select form-select-sm" id="filterSev" style="width:130px;" onchange="loadAlerts()">
+            <option value="">All severities</option>
+            <option>Critical</option><option>High</option>
+            <option>Medium</option><option>Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="tblAlerts">
+          <thead><tr>
+            <th>ID</th><th>Rule</th><th>Severity</th>
+            <th>Src IP</th><th>Description</th><th>Time</th><th>Action</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Event search ── -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">Event Search</div>
+      <div class="card-body">
+        <div class="row g-2 mb-3">
+          <div class="col-md-2"><input class="form-control form-control-sm" id="qSrcIp" placeholder="Source IP"></div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="qDstIp" placeholder="Dest IP"></div>
+          <div class="col-md-2">
+            <select class="form-select form-select-sm" id="qSource">
+              <option value="">All sources</option>
+              <option>firewall</option><option>dns</option>
+              <option>radius</option><option>dhcp</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select class="form-select form-select-sm" id="qAction">
+              <option value="">All actions</option>
+              <option>Allow</option><option>Deny</option><option>Alert</option>
+            </select>
+          </div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="qSince" type="date" title="Since"></div>
+          <div class="col-md-2">
+            <button class="btn btn-sm btn-outline-info w-100" onclick="searchEvents()">Search</button>
+          </div>
+        </div>
+        <div style="max-height:300px;overflow:auto;">
+          <table class="table table-sm table-hover mb-0" id="tblEvents">
+            <thead><tr>
+              <th>Time</th><th>Source</th><th>Type</th><th>Component</th>
+              <th>Action</th><th>Src IP</th><th>Dst IP</th><th>Port</th>
+              <th>User</th><th>Message</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- IP Lookup Modal -->
+<div class="modal fade" id="ipModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="ipModalTitle">IP Activity</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="ipModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ─── Utilities ──────────────────────────────────────────────────────────────
+function fmtNum(n){ return n==null?'—':Number(n).toLocaleString(); }
+function sevBadge(s){
+  const cls = {Critical:'danger',High:'warning text-dark',Medium:'primary',Low:'success'}[s] || 'secondary';
+  return `<span class="badge bg-${cls}">${s}</span>`;
+}
+function ipLink(ip){
+  if(!ip) return '—';
+  return `<a href="#" class="text-info text-decoration-none" onclick="lookupIp('${ip}');return false;">${ip}</a>`;
+}
+
+// ─── Clock ──────────────────────────────────────────────────────────────────
+setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); }, 1000);
+
+// ─── Charts ─────────────────────────────────────────────────────────────────
+const COLORS = ['#388bfd','#da3633','#3fb950','#e3b341','#79c0ff','#ffa657','#d2a8ff','#56d364','#ff7b72','#f0883e'];
+
+async function initCharts(){
+  // Hourly
+  const h = await fetch('/api/chart/hourly?hours=24').then(r=>r.json());
+  new Chart(document.getElementById('chartHourly'),{
+    type:'bar',
+    data:{
+      labels: h.map(r=>r.hour ? r.hour.slice(11,16) : ''),
+      datasets:[
+        {label:'Total',  data:h.map(r=>r.total),  backgroundColor:'#388bfd55', borderColor:'#388bfd', borderWidth:1},
+        {label:'Denied', data:h.map(r=>r.denied), backgroundColor:'#da363355', borderColor:'#da3633', borderWidth:1},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e'}}},
+             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
+                     y:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}}}}
+  });
+
+  // Log types (donut)
+  const lt = await fetch('/api/chart/log_types').then(r=>r.json());
+  new Chart(document.getElementById('chartLogTypes'),{
+    type:'doughnut',
+    data:{ labels:lt.map(r=>r.log_type||'Unknown'), datasets:[{data:lt.map(r=>r.cnt), backgroundColor:COLORS}] },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+             plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:11}}}}}
+  });
+
+  // Top src IPs
+  const ts = await fetch('/api/chart/top_src?action=Deny').then(r=>r.json());
+  new Chart(document.getElementById('chartTopSrc'),{
+    type:'bar', indexAxis:'y',
+    data:{ labels:ts.map(r=>r.src_ip), datasets:[{data:ts.map(r=>r.cnt), backgroundColor:'#da3633aa'}] },
+    options:{responsive:true,maintainAspectRatio:false,
+             plugins:{legend:{display:false}},
+             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
+                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
+  });
+
+  // Top dst IPs
+  const td = await fetch('/api/chart/top_dst').then(r=>r.json());
+  new Chart(document.getElementById('chartTopDst'),{
+    type:'bar', indexAxis:'y',
+    data:{ labels:td.map(r=>r.dst_ip), datasets:[{data:td.map(r=>r.cnt), backgroundColor:'#388bfdaa'}] },
+    options:{responsive:true,maintainAspectRatio:false,
+             plugins:{legend:{display:false}},
+             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
+                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
+  });
+
+  // RADIUS
+  const ra = await fetch('/api/chart/radius_results').then(r=>r.json());
+  const raColors = ra.map(r=>r.result==='Accept'?'#3fb950':r.result==='Reject'?'#da3633':'#e3b341');
+  new Chart(document.getElementById('chartRadius'),{
+    type:'doughnut',
+    data:{ labels:ra.map(r=>r.result), datasets:[{data:ra.map(r=>r.cnt), backgroundColor:raColors}] },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+             plugins:{legend:{position:'bottom',labels:{color:'#8b949e'}}}}
+  });
+
+  // Alert severity
+  const as_ = await fetch('/api/chart/alerts_severity').then(r=>r.json());
+  const asColors = as_.map(r=>({Critical:'#da3633',High:'#e3b341',Medium:'#388bfd',Low:'#3fb950'}[r.severity]||'#888'));
+  new Chart(document.getElementById('chartAlertSev'),{
+    type:'doughnut',
+    data:{ labels:as_.map(r=>r.severity), datasets:[{data:as_.map(r=>r.cnt), backgroundColor:asColors}] },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+             plugins:{legend:{position:'bottom',labels:{color:'#8b949e'}}}}
+  });
+
+  // Top DNS clients
+  const dc = await fetch('/api/chart/top_dns_clients').then(r=>r.json());
+  new Chart(document.getElementById('chartDnsClients'),{
+    type:'bar', indexAxis:'y',
+    data:{ labels:dc.map(r=>r.client_ip), datasets:[{data:dc.map(r=>r.cnt), backgroundColor:'#79c0ffaa'}] },
+    options:{responsive:true,maintainAspectRatio:false,
+             plugins:{legend:{display:false}},
+             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
+                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
+  });
+
+  // Top DNS domains
+  const dd = await fetch('/api/chart/top_dns_domains').then(r=>r.json());
+  const tbody = document.querySelector('#tblDomains tbody');
+  tbody.innerHTML = dd.map(r=>
+    `<tr><td>${r.query_name}</td><td class="text-end">${fmtNum(r.cnt)}</td></tr>`
+  ).join('');
+}
+
+// ─── Alerts table ────────────────────────────────────────────────────────────
+async function loadAlerts(){
+  const sev   = document.getElementById('filterSev').value;
+  const url   = '/api/alerts?unacked=1&limit=200' + (sev ? `&severity=${sev}` : '');
+  const data  = await fetch(url).then(r=>r.json());
+  const tbody = document.querySelector('#tblAlerts tbody');
+  tbody.innerHTML = data.map(a=>`
+    <tr>
+      <td>${a.id}</td>
+      <td>${a.rule_name}</td>
+      <td>${sevBadge(a.severity)}</td>
+      <td>${ipLink(a.src_ip)}</td>
+      <td class="text-truncate" style="max-width:350px;" title="${a.description}">${a.description}</td>
+      <td>${(a.created_at||'').slice(0,16)}</td>
+      <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="ackAlert(${a.id},this)">Ack</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" class="text-center text-secondary py-3">No open alerts</td></tr>';
+}
+
+async function ackAlert(id, btn){
+  await fetch(`/api/alerts/${id}/ack`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{"analyst":"dashboard"}'});
+  btn.closest('tr').remove();
+}
+
+// ─── Event search ────────────────────────────────────────────────────────────
+async function searchEvents(){
+  const params = new URLSearchParams({
+    limit: 200,
+    src_ip:     document.getElementById('qSrcIp').value,
+    dst_ip:     document.getElementById('qDstIp').value,
+    log_source: document.getElementById('qSource').value,
+    action:     document.getElementById('qAction').value,
+    since:      document.getElementById('qSince').value,
+  });
+  const data  = await fetch('/api/events?' + params).then(r=>r.json());
+  const tbody = document.querySelector('#tblEvents tbody');
+  tbody.innerHTML = data.map(e=>`
+    <tr>
+      <td>${(e.ts||'').slice(0,16)}</td>
+      <td>${e.log_source||''}</td>
+      <td>${e.log_type||''}</td>
+      <td>${e.log_component||''}</td>
+      <td><span class="badge bg-${e.action==='Allow'?'success':e.action==='Deny'?'danger':'warning text-dark'}">${e.action||''}</span></td>
+      <td>${ipLink(e.src_ip)}</td>
+      <td>${ipLink(e.dst_ip)}</td>
+      <td>${e.dst_port||''}</td>
+      <td>${e.username||''}</td>
+      <td class="text-truncate" style="max-width:200px;" title="${e.message||''}">${e.message||''}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="10" class="text-center text-secondary py-3">No results</td></tr>';
+}
+
+// ─── IP Lookup ────────────────────────────────────────────────────────────────
+async function lookupIp(ip){
+  document.getElementById('ipModalTitle').textContent = `IP Activity: ${ip}`;
+  document.getElementById('ipModalBody').innerHTML = '<p class="text-secondary">Loading…</p>';
+  new bootstrap.Modal(document.getElementById('ipModal')).show();
+
+  const d = await fetch(`/api/ip_lookup/${ip}`).then(r=>r.json());
+  const section = (title, rows, cols) => {
+    if(!rows||!rows.length) return `<p class="text-secondary small">No ${title}</p>`;
+    const ths = cols.map(c=>`<th>${c}</th>`).join('');
+    const trs = rows.map(r=>`<tr>${cols.map(c=>`<td class="small">${r[c]??'—'}</td>`).join('')}</tr>`).join('');
+    return `<h6 class="text-secondary mt-3">${title} (${rows.length})</h6>
+      <div style="max-height:200px;overflow:auto;">
+      <table class="table table-sm table-hover mb-0"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  };
+
+  document.getElementById('ipModalBody').innerHTML =
+    section('Alerts', d.alerts, ['id','rule_name','severity','description','created_at']) +
+    section('Firewall Events', d.firewall, ['ts','log_type','log_component','action','dst_ip','dst_port','protocol']) +
+    section('DNS Queries', d.dns, ['ts','query_name','query_type']) +
+    section('RADIUS', d.radius, ['ts','username','result','nas_ip']) +
+    section('DHCP', d.dhcp, ['ts','event_type','mac_address','hostname']);
+}
+
+// ─── Run rules ───────────────────────────────────────────────────────────────
+async function runRules(){
+  const btn = document.querySelector('button[onclick="runRules()"]');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  const r = await fetch('/api/run_rules', {method:'POST'}).then(r=>r.json());
+  btn.disabled = false; btn.textContent = '▶ Run Rules';
+  alert(`Rules complete. ${r.new_alerts} new alert(s) generated.`);
+  loadAlerts();
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+initCharts();
+loadAlerts();
+</script>
+</body>
+</html>

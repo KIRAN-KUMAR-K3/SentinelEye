@@ -3,150 +3,509 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SIEM – SOC Dashboard</title>
+<title>SentinelEye SIEM — IISc SOC Platform</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  body { background:#0d1117; color:#c9d1d9; font-family:'Segoe UI',sans-serif; }
-  .navbar { background:#161b22!important; border-bottom:1px solid #30363d; }
-  .card  { background:#161b22; border:1px solid #30363d; border-radius:8px; }
-  .card-header { background:#21262d; border-bottom:1px solid #30363d; font-weight:600; font-size:.85rem; letter-spacing:.05em; text-transform:uppercase; }
-  .stat-card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:1rem 1.25rem; text-align:center; }
-  .stat-val  { font-size:2rem; font-weight:700; line-height:1; }
-  .stat-lbl  { font-size:.75rem; color:#8b949e; margin-top:.25rem; text-transform:uppercase; letter-spacing:.05em; }
-  .badge-Critical { background:#da3633; }
-  .badge-High     { background:#e3b341; color:#000; }
-  .badge-Medium   { background:#388bfd; }
-  .badge-Low      { background:#3fb950; color:#000; }
-  table.table { color:#c9d1d9; font-size:.83rem; }
-  table.table th { color:#8b949e; font-weight:500; border-color:#30363d; }
-  table.table td { border-color:#21262d; vertical-align:middle; }
-  .table-hover tbody tr:hover { background:#1f2937!important; cursor:pointer; }
-  input.form-control, select.form-select {
-    background:#0d1117; color:#c9d1d9; border:1px solid #30363d;
-  }
-  input.form-control:focus, select.form-select:focus {
-    background:#0d1117; color:#c9d1d9; border-color:#388bfd; box-shadow:none;
-  }
-  .btn-outline-info  { color:#79c0ff; border-color:#388bfd; }
-  .btn-outline-info:hover { background:#388bfd; color:#fff; }
-  #ipModal .modal-content { background:#161b22; color:#c9d1d9; border:1px solid #30363d; }
-  pre { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:1rem; font-size:.78rem; color:#c9d1d9; max-height:300px; overflow:auto; }
-  ::-webkit-scrollbar { width:6px; height:6px; }
-  ::-webkit-scrollbar-track { background:#0d1117; }
-  ::-webkit-scrollbar-thumb { background:#30363d; border-radius:3px; }
+:root{
+  --bg0:#060d1a; --bg1:#0a1428; --bg2:#0f1e38; --bg3:#162340;
+  --accent:#1a6dff; --accent2:#00c2ff; --accent3:#7b2fff;
+  --red:#ff3b5c; --orange:#ff8c1a; --yellow:#ffd700; --green:#00e676;
+  --text1:#e2eaf8; --text2:#8fa3cc; --text3:#4a6080;
+  --border:#1e3050; --border2:#2a4070;
+  --card-bg:rgba(10,20,40,0.92);
+  --sidebar-w:220px;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{background:var(--bg0); color:var(--text1); font-family:'Segoe UI',system-ui,sans-serif; font-size:14px; overflow-x:hidden;}
+
+/* SIDEBAR */
+#sidebar{
+  position:fixed; top:0; left:0; width:var(--sidebar-w); height:100vh;
+  background:var(--bg1); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; z-index:100;
+}
+.sidebar-brand{
+  padding:16px 16px 12px;
+  border-bottom:1px solid var(--border);
+}
+.brand-iisc{
+  font-size:11px; font-weight:700; color:var(--accent2); letter-spacing:0.08em;
+  text-transform:uppercase;
+}
+.brand-title{
+  font-size:17px; font-weight:700; color:var(--text1);
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.brand-sub{font-size:10px; color:var(--text3); margin-top:2px;}
+.brand-iso{font-size:10px; color:var(--yellow); font-weight:600;}
+
+.nav-section{padding:8px 12px 4px; font-size:10px; color:var(--text3); font-weight:700; letter-spacing:0.1em; text-transform:uppercase;}
+.nav-item{
+  display:flex; align-items:center; gap:10px;
+  padding:8px 16px; color:var(--text2); cursor:pointer;
+  border-left:3px solid transparent; transition:all 0.15s;
+  text-decoration:none; font-size:13px;
+}
+.nav-item:hover{background:rgba(26,109,255,0.08); color:var(--text1);}
+.nav-item.active{
+  background:rgba(26,109,255,0.15); color:var(--accent2);
+  border-left-color:var(--accent); font-weight:600;
+}
+.nav-icon{width:18px; text-align:center; font-size:14px;}
+.nav-badge{
+  margin-left:auto; background:var(--red); color:#fff;
+  font-size:10px; font-weight:700; padding:1px 6px;
+  border-radius:20px; min-width:20px; text-align:center;
+}
+
+.sidebar-footer{
+  margin-top:auto; padding:12px 16px;
+  border-top:1px solid var(--border);
+  font-size:10px; color:var(--text3); line-height:1.6;
+}
+
+/* TOPBAR */
+#topbar{
+  position:fixed; top:0; left:var(--sidebar-w); right:0; height:52px;
+  background:var(--bg1); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 20px; gap:12px; z-index:99;
+}
+.page-title{font-size:15px; font-weight:600; color:var(--text1);}
+.topbar-right{margin-left:auto; display:flex; align-items:center; gap:10px;}
+#clock{font-size:12px; color:var(--text2); font-variant-numeric:tabular-nums;}
+.btn-soc{
+  background:rgba(26,109,255,0.15); border:1px solid var(--accent);
+  color:var(--accent2); padding:5px 14px; border-radius:6px;
+  font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s;
+}
+.btn-soc:hover{background:var(--accent); color:#fff;}
+.btn-soc.danger{border-color:var(--red); color:var(--red); background:rgba(255,59,92,0.1);}
+.btn-soc.success{border-color:var(--green); color:var(--green); background:rgba(0,230,118,0.1);}
+
+/* MAIN */
+#main{margin-left:var(--sidebar-w); margin-top:52px; padding:20px; min-height:calc(100vh - 52px);}
+.view{display:none;} .view.active{display:block;}
+
+/* STAT CARDS */
+.stat-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:20px;}
+.stat-card{
+  background:var(--card-bg); border:1px solid var(--border); border-radius:10px;
+  padding:14px 16px; position:relative; overflow:hidden;
+}
+.stat-card::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+}
+.stat-card.red::before{background:linear-gradient(90deg,var(--red),#ff7b72);}
+.stat-card.orange::before{background:linear-gradient(90deg,var(--orange),var(--yellow));}
+.stat-card.green::before{background:linear-gradient(90deg,var(--green),#69f0ae);}
+.stat-card.purple::before{background:linear-gradient(90deg,var(--accent3),#c27aff);}
+.stat-val{font-size:26px; font-weight:700; color:var(--text1); line-height:1; margin-bottom:4px;}
+.stat-val.red{color:var(--red);}
+.stat-val.orange{color:var(--orange);}
+.stat-val.green{color:var(--green);}
+.stat-val.blue{color:var(--accent2);}
+.stat-val.purple{color:#c27aff;}
+.stat-lbl{font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em;}
+
+/* CARDS */
+.soc-card{background:var(--card-bg); border:1px solid var(--border); border-radius:10px; margin-bottom:16px;}
+.soc-card-header{
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.soc-card-title{font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:0.08em;}
+.soc-card-body{padding:16px;}
+
+/* TABLES */
+.soc-table{width:100%; border-collapse:collapse; font-size:12px;}
+.soc-table th{
+  padding:8px 12px; color:var(--text3); font-weight:600; font-size:11px;
+  text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--border);
+  text-align:left; white-space:nowrap;
+}
+.soc-table td{padding:7px 12px; border-bottom:1px solid rgba(30,48,80,0.5); vertical-align:middle;}
+.soc-table tbody tr:hover{background:rgba(26,109,255,0.05); cursor:pointer;}
+.soc-table td:first-child{color:var(--text2);}
+
+/* BADGES */
+.sev{display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px; letter-spacing:0.04em;}
+.sev-Critical{background:rgba(255,59,92,0.2); color:#ff7b9a; border:1px solid rgba(255,59,92,0.4);}
+.sev-High    {background:rgba(255,140,26,0.2); color:#ffab5c; border:1px solid rgba(255,140,26,0.4);}
+.sev-Medium  {background:rgba(26,109,255,0.2); color:#79aaff; border:1px solid rgba(26,109,255,0.4);}
+.sev-Low     {background:rgba(0,230,118,0.2); color:#69f0ae; border:1px solid rgba(0,230,118,0.4);}
+.act-Allow   {background:rgba(0,230,118,0.15); color:#69f0ae;}
+.act-Deny    {background:rgba(255,59,92,0.15);  color:#ff7b9a;}
+.act-Alert   {background:rgba(255,215,0,0.15);  color:#ffd700;}
+.badge-act{display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:4px;}
+
+/* INPUTS */
+.soc-input, .soc-select{
+  background:var(--bg2); border:1px solid var(--border2); color:var(--text1);
+  padding:6px 10px; border-radius:6px; font-size:12px; width:100%;
+}
+.soc-input:focus, .soc-select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(26,109,255,0.2);}
+.soc-input::placeholder{color:var(--text3);}
+.filter-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+.filter-item{flex:1; min-width:120px; max-width:200px;}
+.filter-item label{font-size:10px; color:var(--text3); margin-bottom:3px; display:block; text-transform:uppercase; letter-spacing:0.05em;}
+
+/* CHARTS */
+.chart-wrap{position:relative;}
+
+/* IP LINK */
+.ip-link{color:var(--accent2); cursor:pointer; text-decoration:none; font-family:monospace; font-size:12px;}
+.ip-link:hover{text-decoration:underline;}
+
+/* MODAL */
+.soc-modal-overlay{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85);
+  z-index:1000; align-items:center; justify-content:center;
+}
+.soc-modal-overlay.open{display:flex;}
+.soc-modal{
+  background:var(--bg2); border:1px solid var(--border2);
+  border-radius:14px; width:95%; max-width:1000px;
+  max-height:90vh; display:flex; flex-direction:column;
+}
+.soc-modal-header{
+  padding:16px 20px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.soc-modal-body{padding:20px; overflow-y:auto; flex:1;}
+.modal-close{background:none; border:none; color:var(--text3); font-size:20px; cursor:pointer; line-height:1;}
+.modal-close:hover{color:var(--text1);}
+
+/* TABS inside modal */
+.soc-tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px;}
+.soc-tab{padding:6px 14px; font-size:12px; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.soc-tab:hover{color:var(--text1);}
+.soc-tab.active{color:var(--accent2); border-bottom-color:var(--accent2);}
+.soc-tab-pane{display:none;} .soc-tab-pane.active{display:block;}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px; height:5px;}
+::-webkit-scrollbar-track{background:var(--bg1);}
+::-webkit-scrollbar-thumb{background:var(--border2); border-radius:3px;}
+
+/* PULSE */
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.4;}}
+.live-dot{width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block; animation:pulse 2s infinite;}
+
+/* THREAT ROW */
+.threat-row{background:rgba(255,59,92,0.05);}
+
+/* RESPONSIVE GRID */
+.g2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;}
+@media(max-width:900px){.g2,.g3{grid-template-columns:1fr;}}
+
+.text-mono{font-family:monospace; font-size:12px;}
+.text-muted{color:var(--text3);}
+.text-danger{color:var(--red);}
+.text-warning{color:var(--orange);}
+.text-success{color:var(--green);}
+.text-info{color:var(--accent2);}
+.truncate{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 </style>
 </head>
 <body>
 
-<!-- Nav -->
-<nav class="navbar navbar-dark px-4 py-2 mb-4">
-  <span class="navbar-brand fw-bold fs-5">⚡ SIEM — SOC Dashboard</span>
-  <div class="d-flex gap-2 align-items-center">
-    <span id="clock" class="text-secondary small"></span>
-    <button class="btn btn-sm btn-outline-warning" onclick="runRules()">▶ Run Rules</button>
-    <button class="btn btn-sm btn-outline-info" onclick="location.reload()">↻ Refresh</button>
+<!-- ═══════ SIDEBAR ═══════ -->
+<nav id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-iisc">Indian Institute of Science</div>
+    <div class="brand-title">SentinelEye</div>
+    <div class="brand-sub">Security Operations Centre</div>
+    <div class="brand-iso">⚡ ISO Security Team</div>
+  </div>
+
+  <div class="nav-section">SOC Operations</div>
+  <a class="nav-item active" onclick="showView('overview')" id="nav-overview">
+    <span class="nav-icon">🏠</span> Overview
+  </a>
+  <a class="nav-item" onclick="showView('alerts')" id="nav-alerts">
+    <span class="nav-icon">🚨</span> Alerts
+    <span class="nav-badge" id="nb-alerts">…</span>
+  </a>
+
+  <div class="nav-section">Analysis</div>
+  <a class="nav-item" onclick="showView('firewall')" id="nav-firewall">
+    <span class="nav-icon">🔥</span> Firewall
+  </a>
+  <a class="nav-item" onclick="showView('dns')" id="nav-dns">
+    <span class="nav-icon">🌐</span> DNS Analysis
+  </a>
+  <a class="nav-item" onclick="showView('users')" id="nav-users">
+    <span class="nav-icon">👤</span> Users
+  </a>
+  <a class="nav-item" onclick="showView('threats')" id="nav-threats">
+    <span class="nav-icon">🛡️</span> Threats
+  </a>
+  <a class="nav-item" onclick="showView('network')" id="nav-network">
+    <span class="nav-icon">🔗</span> Network
+  </a>
+
+  <div class="nav-section">Investigation</div>
+  <a class="nav-item" onclick="showView('hunt')" id="nav-hunt">
+    <span class="nav-icon">🔍</span> Event Hunt
+  </a>
+  <a class="nav-item" onclick="showView('reports')" id="nav-reports">
+    <span class="nav-icon">📊</span> Reports
+  </a>
+
+  <div class="sidebar-footer">
+    <div>SentinelEye SIEM v2.0</div>
+    <div>Built for IISc SOC</div>
+    <div style="margin-top:4px; color:var(--accent2);" id="ingest-status">● System Ready</div>
   </div>
 </nav>
 
-<div class="container-fluid px-4">
+<!-- ═══════ TOPBAR ═══════ -->
+<header id="topbar">
+  <span class="live-dot"></span>
+  <span class="page-title" id="page-title">Overview</span>
+  <span style="font-size:11px; color:var(--text3); margin-left:8px;" id="view-subtitle"></span>
+  <div class="topbar-right">
+    <!-- Date range -->
+    <div style="display:flex; align-items:center; gap:6px;">
+      <span style="font-size:11px; color:var(--text3);">From</span>
+      <input type="date" id="g-since" class="soc-input" style="width:130px; padding:4px 8px;">
+      <span style="font-size:11px; color:var(--text3);">To</span>
+      <input type="date" id="g-until" class="soc-input" style="width:130px; padding:4px 8px;">
+      <button class="btn-soc" onclick="applyDateFilter()">Apply</button>
+      <button class="btn-soc" onclick="clearDateFilter()" style="padding:5px 8px;">✕</button>
+    </div>
+    <span id="clock" style="min-width:80px; text-align:right;"></span>
+    <button class="btn-soc success" onclick="runRules()">▶ Run Rules</button>
+  </div>
+</header>
 
-<!-- ── Stat cards ── -->
-<div class="row g-3 mb-4">
-  {% set cards = [
-    ("total_events",   stats.total_events,   "Total Events",      "text-info"),
-    ("open_alerts",    stats.open_alerts,    "Open Alerts",       "text-warning"),
-    ("critical_alerts",stats.critical_alerts,"Critical Alerts",   "text-danger"),
-    ("denied_events",  stats.denied_events,  "Denied Connections","text-danger"),
-    ("atp_events",     stats.atp_events,     "ATP / Threat",      "text-danger"),
-    ("ips_events",     stats.ips_events,     "IPS Events",        "text-warning"),
-    ("dos_events",     stats.dos_events,     "DoS Attacks",       "text-danger"),
-    ("total_dns",      stats.total_dns,      "DNS Queries",       "text-primary"),
-    ("radius_rejects", stats.radius_rejects, "RADIUS Rejects",    "text-warning"),
-    ("files_ingested", stats.files_ingested, "Files Ingested",    "text-secondary"),
-  ] %}
-  {% for id, val, lbl, cls in cards %}
-  <div class="col-6 col-md-3 col-xl-2">
-    <div class="stat-card">
-      <div class="stat-val {{ cls }}">{{ "{:,}".format(val) }}</div>
-      <div class="stat-lbl">{{ lbl }}</div>
+<!-- ═══════ MAIN ═══════ -->
+<main id="main">
+
+<!-- ════════════════ OVERVIEW ════════════════ -->
+<div id="view-overview" class="view active">
+  <div class="stat-grid" id="stat-grid"></div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header">
+        <span class="soc-card-title">Event Timeline (24h)</span>
+        <select class="soc-select" style="width:100px; padding:3px 6px;" onchange="loadHourlyChart(this.value)" id="hourly-range">
+          <option value="24">24h</option><option value="48">48h</option>
+          <option value="72">72h</option><option value="168">7d</option>
+        </select>
+      </div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:220px;"><canvas id="chartHourly"></canvas></div></div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Log Type Breakdown</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:220px;"><canvas id="chartLogTypes"></canvas></div></div>
     </div>
   </div>
-  {% endfor %}
+  <div class="g3">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Alerts by Severity</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:180px;"><canvas id="chartAlertSev"></canvas></div></div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">DNS Volume (48h)</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:180px;"><canvas id="chartDnsHourly"></canvas></div></div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Queried Domains</span></div>
+      <div class="soc-card-body" style="padding:8px 0; max-height:200px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-top-domains-ov"><thead><tr><th>Domain</th><th>Queries</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <!-- Recent Alerts mini -->
+  <div class="soc-card">
+    <div class="soc-card-header">
+      <span class="soc-card-title">Recent Open Alerts</span>
+      <a onclick="showView('alerts')" class="btn-soc" style="font-size:11px; padding:3px 10px; cursor:pointer;">View All →</a>
+    </div>
+    <div class="soc-card-body" style="padding:0; max-height:250px; overflow-y:auto;">
+      <table class="soc-table" id="tbl-alerts-ov">
+        <thead><tr><th>#</th><th>Rule</th><th>Severity</th><th>Src IP</th><th>Description</th><th>Time</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
-<!-- ── Row 1: Hourly timeline + Action breakdown ── -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-8">
-    <div class="card h-100">
-      <div class="card-header">Event Timeline (24h)</div>
-      <div class="card-body" style="height:220px;">
-        <canvas id="chartHourly"></canvas>
+<!-- ════════════════ ALERTS ════════════════ -->
+<div id="view-alerts" class="view">
+  <div class="soc-card">
+    <div class="soc-card-header">
+      <span class="soc-card-title">Alert Management</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="btn-soc" onclick="bulkAckSelected()">✓ Bulk ACK Selected</button>
+        <button class="btn-soc" onclick="exportAlerts('csv')">↓ CSV</button>
+        <button class="btn-soc" onclick="exportAlerts('json')">↓ JSON</button>
+      </div>
+    </div>
+    <div class="soc-card-body">
+      <div class="filter-row">
+        <div class="filter-item">
+          <label>Severity</label>
+          <select class="soc-select" id="al-severity" onchange="loadAlerts()">
+            <option value="">All</option>
+            <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>Rule</label>
+          <select class="soc-select" id="al-rule" onchange="loadAlerts()"><option value="">All Rules</option></select>
+        </div>
+        <div class="filter-item">
+          <label>Src IP</label>
+          <input class="soc-input" id="al-ip" placeholder="10.x.x.x" onkeydown="if(event.key==='Enter')loadAlerts()">
+        </div>
+        <div class="filter-item">
+          <label>Status</label>
+          <select class="soc-select" id="al-status" onchange="loadAlerts()">
+            <option value="1">Open Only</option><option value="0">All</option>
+          </select>
+        </div>
+        <div class="filter-item" style="display:flex; align-items:flex-end;">
+          <button class="btn-soc" onclick="loadAlerts()" style="width:100%;">Search</button>
+        </div>
+      </div>
+      <div style="max-height:70vh; overflow-y:auto;">
+        <table class="soc-table" id="tbl-alerts">
+          <thead><tr>
+            <th><input type="checkbox" id="chk-all" onchange="toggleAll(this)"></th>
+            <th>ID</th><th>Rule</th><th>Severity</th><th>Src IP</th>
+            <th>Description</th><th>Time</th><th>Action</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
-    <div class="card h-100">
-      <div class="card-header">Log Types</div>
-      <div class="card-body" style="height:220px;">
-        <canvas id="chartLogTypes"></canvas>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Rules Summary</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:300px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-rule-summary">
+          <thead><tr><th>Rule</th><th>Severity</th><th>Total</th><th>Open</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Alert Trend</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:260px;"><canvas id="chartAlertSev2"></canvas></div></div>
     </div>
   </div>
 </div>
 
-<!-- ── Row 2: Top Denied SrcIP + Top Dst + RADIUS ── -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header">Top Denied Source IPs</div>
-      <div class="card-body" style="height:250px;">
-        <canvas id="chartTopSrc"></canvas>
+<!-- ════════════════ FIREWALL ════════════════ -->
+<div id="view-firewall" class="view">
+  <div class="stat-grid" id="fw-stat-grid"></div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header">
+        <span class="soc-card-title">Top Source IPs</span>
+        <select class="soc-select" style="width:90px; padding:3px 6px;" onchange="loadFwTopSrc(this.value)">
+          <option value="Deny">Denied</option><option value="Allow">Allowed</option>
+        </select>
+      </div>
+      <div class="soc-card-body" style="padding:0; max-height:300px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-fw-src">
+          <thead><tr><th>Src IP</th><th>Count</th><th>Targets</th><th>Ports</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Destination IPs</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:300px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-fw-dst">
+          <thead><tr><th>Dst IP</th><th>Count</th><th>Denied</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header">Top Destination IPs</div>
-      <div class="card-body" style="height:250px;">
-        <canvas id="chartTopDst"></canvas>
+  <div class="g3">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Protocols</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:200px;"><canvas id="chartProtocols"></canvas></div></div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Dest Ports</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:220px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-fw-ports">
+          <thead><tr><th>Port</th><th>Service</th><th>Count</th><th>Denied</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Applications</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:220px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-fw-apps">
+          <thead><tr><th>Application</th><th>Count</th><th>Bytes</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header">RADIUS Auth Results</div>
-      <div class="card-body" style="height:250px;">
-        <canvas id="chartRadius"></canvas>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Firewall Rules Hit</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:260px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-fw-rules">
+          <thead><tr><th>Rule</th><th>Total</th><th>Allowed</th><th>Denied</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Bandwidth by Host (Top 15)</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:230px;"><canvas id="chartBandwidth"></canvas></div></div>
     </div>
   </div>
 </div>
 
-<!-- ── Row 3: Alerts severity + Top DNS ── -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-3">
-    <div class="card">
-      <div class="card-header">Alerts by Severity</div>
-      <div class="card-body" style="height:220px;">
-        <canvas id="chartAlertSev"></canvas>
+<!-- ════════════════ DNS ════════════════ -->
+<div id="view-dns" class="view">
+  <div class="stat-grid" id="dns-stat-grid"></div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Queried Domains</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:350px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-dns-domains">
+          <thead><tr><th>Domain</th><th>Count</th><th>Clients</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top DNS Clients</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:350px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-dns-clients">
+          <thead><tr><th>Client IP</th><th>Queries</th><th>Unique Domains</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header">Top DNS Clients</div>
-      <div class="card-body" style="height:220px;">
-        <canvas id="chartDnsClients"></canvas>
-      </div>
+  <div class="g3">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Query Types</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:200px;"><canvas id="chartDnsTypes"></canvas></div></div>
     </div>
-  </div>
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header">Top Queried Domains</div>
-      <div class="card-body" style="height:220px;overflow-y:auto;">
-        <table class="table table-sm mb-0" id="tblDomains">
-          <thead><tr><th>Domain</th><th class="text-end">Count</th></tr></thead>
+    <div class="soc-card" style="grid-column:span 2;">
+      <div class="soc-card-header"><span class="soc-card-title">🚨 Suspicious DNS Queries (DGA / Suspicious TLDs)</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:220px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-dns-susp">
+          <thead><tr><th>Domain</th><th>Client IP</th><th>Count</th><th>First Seen</th><th>Last Seen</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -154,25 +513,205 @@
   </div>
 </div>
 
-<!-- ── Alerts table ── -->
-<div class="row g-3 mb-3">
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Open Alerts</span>
-        <div class="d-flex gap-2">
-          <select class="form-select form-select-sm" id="filterSev" style="width:130px;" onchange="loadAlerts()">
-            <option value="">All severities</option>
-            <option>Critical</option><option>High</option>
-            <option>Medium</option><option>Low</option>
-          </select>
+<!-- ════════════════ USERS ════════════════ -->
+<div id="view-users" class="view">
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Admin Logins (GUI / CLI)</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-user-logins">
+          <thead><tr><th>Time</th><th>User</th><th>Src IP</th><th>Method</th><th>Action</th><th>Message</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">RADIUS Auth — User Summary</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-radius-users">
+          <thead><tr><th>Username</th><th>Total</th><th>Accepted</th><th>Rejected</th><th>Last Seen</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">🚨 Failed Logins (Brute Force Candidates)</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:280px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-failed-logins">
+          <thead><tr><th>Username</th><th>NAS IP</th><th>Failures</th><th>First</th><th>Last</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">VPN / SSL-VPN Sessions</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:280px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-vpn">
+          <thead><tr><th>Time</th><th>User</th><th>Src IP</th><th>Type</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- User search -->
+  <div class="soc-card">
+    <div class="soc-card-header"><span class="soc-card-title">User Investigation</span></div>
+    <div class="soc-card-body">
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input class="soc-input" id="user-search-input" placeholder="Enter username or email…" style="flex:1;" onkeydown="if(event.key==='Enter')userLookup()">
+        <button class="btn-soc" onclick="userLookup()">🔍 Investigate</button>
+      </div>
+      <div id="user-lookup-result" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ THREATS ════════════════ -->
+<div id="view-threats" class="view">
+  <div class="stat-grid" id="threat-stat-grid"></div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">🔴 ATP / C2 Threats</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-atp">
+          <thead><tr><th>Time</th><th>Src IP</th><th>Dst IP</th><th>Threat</th><th>URL</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">ATP Threat Summary</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-atp-summary">
+          <thead><tr><th>Threat Name</th><th>Hits</th><th>Hosts Infected</th><th>First Seen</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">IPS Signatures</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:260px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-ips">
+          <thead><tr><th>Time</th><th>Src IP</th><th>Message</th><th>Sev</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">DoS Attacks</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:260px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-dos">
+          <thead><tr><th>Time</th><th>Src IP</th><th>Protocol</th><th>Message</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Top Threat Hosts</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:260px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-threat-hosts">
+          <thead><tr><th>Host IP</th><th>Incidents</th><th>Threat Types</th><th>Last Seen</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ NETWORK ════════════════ -->
+<div id="view-network" class="view">
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Recent DHCP Leases</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-dhcp">
+          <thead><tr><th>Time</th><th>Type</th><th>IP</th><th>MAC</th><th>Hostname</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">VPN / IPSec Sessions</span></div>
+      <div class="soc-card-body" style="padding:0; max-height:320px; overflow-y:auto;">
+        <table class="soc-table" id="tbl-vpn-net">
+          <thead><tr><th>Time</th><th>User</th><th>Src IP</th><th>Type</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- MAC/IP lookup -->
+  <div class="soc-card">
+    <div class="soc-card-header"><span class="soc-card-title">MAC / IP Lookup</span></div>
+    <div class="soc-card-body">
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <input class="soc-input" id="mac-ip-input" placeholder="IP (10.x.x.x) or MAC (aa:bb:cc:dd:ee:ff)" style="flex:1; max-width:340px;" onkeydown="if(event.key==='Enter')macIpLookup()">
+        <button class="btn-soc" onclick="macIpLookup()">🔍 Lookup</button>
+      </div>
+      <div id="mac-ip-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ HUNT ════════════════ -->
+<div id="view-hunt" class="view">
+  <div class="soc-card">
+    <div class="soc-card-header">
+      <span class="soc-card-title">Advanced Event Search</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn-soc" onclick="exportEvents('csv')">↓ CSV</button>
+        <button class="btn-soc" onclick="exportEvents('json')">↓ JSON</button>
+      </div>
+    </div>
+    <div class="soc-card-body">
+      <div class="filter-row">
+        <div class="filter-item"><label>Src IP</label>
+          <input class="soc-input" id="h-src" placeholder="10.x.x.x"></div>
+        <div class="filter-item"><label>Dst IP</label>
+          <input class="soc-input" id="h-dst" placeholder="10.x.x.x"></div>
+        <div class="filter-item"><label>Port</label>
+          <input class="soc-input" id="h-port" placeholder="443"></div>
+        <div class="filter-item"><label>Log Source</label>
+          <select class="soc-select" id="h-source">
+            <option value="">All</option>
+            <option>firewall</option><option>dns</option><option>radius</option><option>dhcp</option>
+          </select></div>
+        <div class="filter-item"><label>Log Type</label>
+          <input class="soc-input" id="h-type" placeholder="ATP / IPS / Firewall…"></div>
+        <div class="filter-item"><label>Action</label>
+          <select class="soc-select" id="h-action">
+            <option value="">All</option>
+            <option>Allow</option><option>Deny</option><option>Alert</option>
+          </select></div>
+        <div class="filter-item"><label>Username / Email</label>
+          <input class="soc-input" id="h-user" placeholder="user@iisc.ac.in"></div>
+        <div class="filter-item"><label>Protocol</label>
+          <select class="soc-select" id="h-proto">
+            <option value="">All</option>
+            <option>TCP</option><option>UDP</option><option>ICMP</option>
+          </select></div>
+        <div class="filter-item"><label>Keyword (msg/url)</label>
+          <input class="soc-input" id="h-kw" placeholder="threat name, URL, message…"></div>
+        <div class="filter-item"><label>Limit</label>
+          <select class="soc-select" id="h-limit">
+            <option value="100">100</option><option value="500">500</option>
+            <option value="1000">1000</option><option value="2000">2000</option>
+          </select></div>
+        <div class="filter-item" style="display:flex; align-items:flex-end;">
+          <button class="btn-soc" onclick="huntSearch()" style="width:100%;">🔍 Search</button>
         </div>
       </div>
-      <div class="card-body p-0">
-        <table class="table table-hover mb-0" id="tblAlerts">
+      <div id="hunt-count" style="font-size:11px; color:var(--text3); margin-bottom:8px;"></div>
+      <div style="max-height:65vh; overflow-y:auto;">
+        <table class="soc-table" id="tbl-hunt">
           <thead><tr>
-            <th>ID</th><th>Rule</th><th>Severity</th>
-            <th>Src IP</th><th>Description</th><th>Time</th><th>Action</th>
+            <th>Time</th><th>Source</th><th>Type</th><th>Component</th>
+            <th>Action</th><th>Src IP</th><th>Dst IP</th><th>Port</th>
+            <th>Proto</th><th>User</th><th>Application</th><th>Threat</th><th>Msg</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -181,258 +720,865 @@
   </div>
 </div>
 
-<!-- ── Event search ── -->
-<div class="row g-3 mb-4">
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header">Event Search</div>
-      <div class="card-body">
-        <div class="row g-2 mb-3">
-          <div class="col-md-2"><input class="form-control form-control-sm" id="qSrcIp" placeholder="Source IP"></div>
-          <div class="col-md-2"><input class="form-control form-control-sm" id="qDstIp" placeholder="Dest IP"></div>
-          <div class="col-md-2">
-            <select class="form-select form-select-sm" id="qSource">
-              <option value="">All sources</option>
-              <option>firewall</option><option>dns</option>
-              <option>radius</option><option>dhcp</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <select class="form-select form-select-sm" id="qAction">
-              <option value="">All actions</option>
-              <option>Allow</option><option>Deny</option><option>Alert</option>
-            </select>
-          </div>
-          <div class="col-md-2"><input class="form-control form-control-sm" id="qSince" type="date" title="Since"></div>
-          <div class="col-md-2">
-            <button class="btn btn-sm btn-outline-info w-100" onclick="searchEvents()">Search</button>
-          </div>
-        </div>
-        <div style="max-height:300px;overflow:auto;">
-          <table class="table table-sm table-hover mb-0" id="tblEvents">
-            <thead><tr>
-              <th>Time</th><th>Source</th><th>Type</th><th>Component</th>
-              <th>Action</th><th>Src IP</th><th>Dst IP</th><th>Port</th>
-              <th>User</th><th>Message</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+<!-- ════════════════ REPORTS ════════════════ -->
+<div id="view-reports" class="view">
+  <div class="stat-grid" id="report-stat-grid"></div>
+  <div class="g2">
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Executive Summary</span>
+        <button class="btn-soc" onclick="printReport()">🖨 Print</button>
+      </div>
+      <div class="soc-card-body" id="exec-summary" style="font-size:13px; line-height:2;"></div>
+    </div>
+    <div class="soc-card">
+      <div class="soc-card-header"><span class="soc-card-title">Daily Events (7 days)</span></div>
+      <div class="soc-card-body"><div class="chart-wrap" style="height:240px;"><canvas id="chartDaily7"></canvas></div></div>
+    </div>
+  </div>
+  <div class="soc-card">
+    <div class="soc-card-header"><span class="soc-card-title">Export Data</span></div>
+    <div class="soc-card-body">
+      <div style="display:flex; flex-wrap:wrap; gap:12px;">
+        <button class="btn-soc" onclick="exportAlerts('csv')">↓ Alerts CSV</button>
+        <button class="btn-soc" onclick="exportAlerts('json')">↓ Alerts JSON</button>
+        <button class="btn-soc" onclick="exportEvents('csv')">↓ Events CSV (top 5k)</button>
+        <button class="btn-soc" onclick="exportEvents('json')">↓ Events JSON</button>
+        <button class="btn-soc" onclick="window.open('/api/report/executive')">↓ Full Report JSON</button>
       </div>
     </div>
   </div>
 </div>
 
-</div><!-- /container -->
+</main>
 
-<!-- IP Lookup Modal -->
-<div class="modal fade" id="ipModal" tabindex="-1">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header border-secondary">
-        <h5 class="modal-title" id="ipModalTitle">IP Activity</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<!-- ════════════════ IP PIVOT MODAL ════════════════ -->
+<div class="soc-modal-overlay" id="ip-modal">
+  <div class="soc-modal">
+    <div class="soc-modal-header">
+      <div>
+        <div style="font-size:11px; color:var(--text3); margin-bottom:2px;">IP Investigation</div>
+        <div style="font-size:16px; font-weight:700; font-family:monospace; color:var(--accent2);" id="ip-modal-ip"></div>
       </div>
-      <div class="modal-body" id="ipModalBody"></div>
+      <button class="modal-close" onclick="closeModal('ip-modal')">✕</button>
+    </div>
+    <div class="soc-modal-body">
+      <div class="soc-tabs">
+        <span class="soc-tab active" onclick="showTab(this,'ip-fw')">Firewall</span>
+        <span class="soc-tab" onclick="showTab(this,'ip-dns')">DNS</span>
+        <span class="soc-tab" onclick="showTab(this,'ip-radius')">RADIUS</span>
+        <span class="soc-tab" onclick="showTab(this,'ip-dhcp')">DHCP</span>
+        <span class="soc-tab" onclick="showTab(this,'ip-alerts')">Alerts</span>
+        <span class="soc-tab" onclick="showTab(this,'ip-threats')">Threats</span>
+      </div>
+      <div id="ip-fw" class="soc-tab-pane active">
+        <table class="soc-table" id="ip-tbl-fw"><thead><tr><th>Time</th><th>Type</th><th>Component</th><th>Action</th><th>Dst IP</th><th>Port</th><th>Proto</th><th>User</th><th>Message</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ip-dns" class="soc-tab-pane">
+        <table class="soc-table" id="ip-tbl-dns"><thead><tr><th>Time</th><th>Domain</th><th>Type</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ip-radius" class="soc-tab-pane">
+        <table class="soc-table" id="ip-tbl-radius"><thead><tr><th>Time</th><th>Username</th><th>Result</th><th>NAS IP</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ip-dhcp" class="soc-tab-pane">
+        <table class="soc-table" id="ip-tbl-dhcp"><thead><tr><th>Time</th><th>Event</th><th>MAC</th><th>Hostname</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ip-alerts" class="soc-tab-pane">
+        <table class="soc-table" id="ip-tbl-alerts"><thead><tr><th>ID</th><th>Rule</th><th>Severity</th><th>Description</th><th>Time</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ip-threats" class="soc-tab-pane">
+        <table class="soc-table" id="ip-tbl-threats"><thead><tr><th>Time</th><th>Threat</th><th>URL</th><th>Dst IP</th></tr></thead><tbody></tbody></table>
+      </div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ─── Utilities ──────────────────────────────────────────────────────────────
-function fmtNum(n){ return n==null?'—':Number(n).toLocaleString(); }
-function sevBadge(s){
-  const cls = {Critical:'danger',High:'warning text-dark',Medium:'primary',Low:'success'}[s] || 'secondary';
-  return `<span class="badge bg-${cls}">${s}</span>`;
+// ═══════════════════════════════════════════════════════
+// GLOBALS
+// ═══════════════════════════════════════════════════════
+const C = {
+  blue:'#1a6dff', cyan:'#00c2ff', red:'#ff3b5c', orange:'#ff8c1a',
+  green:'#00e676', yellow:'#ffd700', purple:'#7b2fff', gray:'#4a6080',
+  teal:'#00bcd4', pink:'#e91e63'
+};
+const PALETTE = [C.blue,C.cyan,C.green,C.orange,C.red,C.yellow,C.purple,C.teal,C.pink,C.gray];
+let charts = {};
+let gSince = '', gUntil = '';
+let selectedAlerts = new Set();
+
+// ═══════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════
+const fmtN  = n => n==null?'—':Number(n).toLocaleString();
+const fmtTs = s => s ? s.slice(0,16).replace('T',' ') : '—';
+const fmtB  = b => { if(!b) return '0 B'; const k=1024; const s=['B','KB','MB','GB']; let i=Math.floor(Math.log(b)/Math.log(k)); return (b/Math.pow(k,i)).toFixed(1)+' '+s[i]; }
+
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
+
+function sev(s){
+  return `<span class="sev sev-${s}">${s}</span>`;
 }
+function act(a){
+  return `<span class="badge-act act-${a}">${a}</span>`;
+}
+
 function ipLink(ip){
   if(!ip) return '—';
-  return `<a href="#" class="text-info text-decoration-none" onclick="lookupIp('${ip}');return false;">${ip}</a>`;
+  return `<span class="ip-link" onclick="openIPModal('${esc(ip)}')">${esc(ip)}</span>`;
 }
 
-// ─── Clock ──────────────────────────────────────────────────────────────────
-setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); }, 1000);
+function mkTbody(tblId, rows, fn){
+  const tb = document.querySelector(`#${tblId} tbody`);
+  if(!tb) return;
+  tb.innerHTML = rows.length ? rows.map(fn).join('') : `<tr><td colspan="20" style="text-align:center; color:var(--text3); padding:20px;">No data</td></tr>`;
+}
 
-// ─── Charts ─────────────────────────────────────────────────────────────────
-const COLORS = ['#388bfd','#da3633','#3fb950','#e3b341','#79c0ff','#ffa657','#d2a8ff','#56d364','#ff7b72','#f0883e'];
-
-async function initCharts(){
-  // Hourly
-  const h = await fetch('/api/chart/hourly?hours=24').then(r=>r.json());
-  new Chart(document.getElementById('chartHourly'),{
-    type:'bar',
-    data:{
-      labels: h.map(r=>r.hour ? r.hour.slice(11,16) : ''),
-      datasets:[
-        {label:'Total',  data:h.map(r=>r.total),  backgroundColor:'#388bfd55', borderColor:'#388bfd', borderWidth:1},
-        {label:'Denied', data:h.map(r=>r.denied), backgroundColor:'#da363355', borderColor:'#da3633', borderWidth:1},
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e'}}},
-             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
-                     y:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}}}}
-  });
-
-  // Log types (donut)
-  const lt = await fetch('/api/chart/log_types').then(r=>r.json());
-  new Chart(document.getElementById('chartLogTypes'),{
-    type:'doughnut',
-    data:{ labels:lt.map(r=>r.log_type||'Unknown'), datasets:[{data:lt.map(r=>r.cnt), backgroundColor:COLORS}] },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
-             plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:11}}}}}
-  });
-
-  // Top src IPs
-  const ts = await fetch('/api/chart/top_src?action=Deny').then(r=>r.json());
-  new Chart(document.getElementById('chartTopSrc'),{
-    type:'bar', indexAxis:'y',
-    data:{ labels:ts.map(r=>r.src_ip), datasets:[{data:ts.map(r=>r.cnt), backgroundColor:'#da3633aa'}] },
-    options:{responsive:true,maintainAspectRatio:false,
-             plugins:{legend:{display:false}},
-             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
-                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
-  });
-
-  // Top dst IPs
-  const td = await fetch('/api/chart/top_dst').then(r=>r.json());
-  new Chart(document.getElementById('chartTopDst'),{
-    type:'bar', indexAxis:'y',
-    data:{ labels:td.map(r=>r.dst_ip), datasets:[{data:td.map(r=>r.cnt), backgroundColor:'#388bfdaa'}] },
-    options:{responsive:true,maintainAspectRatio:false,
-             plugins:{legend:{display:false}},
-             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
-                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
-  });
-
-  // RADIUS
-  const ra = await fetch('/api/chart/radius_results').then(r=>r.json());
-  const raColors = ra.map(r=>r.result==='Accept'?'#3fb950':r.result==='Reject'?'#da3633':'#e3b341');
-  new Chart(document.getElementById('chartRadius'),{
-    type:'doughnut',
-    data:{ labels:ra.map(r=>r.result), datasets:[{data:ra.map(r=>r.cnt), backgroundColor:raColors}] },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
-             plugins:{legend:{position:'bottom',labels:{color:'#8b949e'}}}}
-  });
-
-  // Alert severity
-  const as_ = await fetch('/api/chart/alerts_severity').then(r=>r.json());
-  const asColors = as_.map(r=>({Critical:'#da3633',High:'#e3b341',Medium:'#388bfd',Low:'#3fb950'}[r.severity]||'#888'));
-  new Chart(document.getElementById('chartAlertSev'),{
-    type:'doughnut',
-    data:{ labels:as_.map(r=>r.severity), datasets:[{data:as_.map(r=>r.cnt), backgroundColor:asColors}] },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
-             plugins:{legend:{position:'bottom',labels:{color:'#8b949e'}}}}
-  });
-
-  // Top DNS clients
-  const dc = await fetch('/api/chart/top_dns_clients').then(r=>r.json());
-  new Chart(document.getElementById('chartDnsClients'),{
-    type:'bar', indexAxis:'y',
-    data:{ labels:dc.map(r=>r.client_ip), datasets:[{data:dc.map(r=>r.cnt), backgroundColor:'#79c0ffaa'}] },
-    options:{responsive:true,maintainAspectRatio:false,
-             plugins:{legend:{display:false}},
-             scales:{x:{ticks:{color:'#8b949e'},grid:{color:'#21262d'}},
-                     y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}}}
-  });
-
-  // Top DNS domains
-  const dd = await fetch('/api/chart/top_dns_domains').then(r=>r.json());
-  const tbody = document.querySelector('#tblDomains tbody');
-  tbody.innerHTML = dd.map(r=>
-    `<tr><td>${r.query_name}</td><td class="text-end">${fmtNum(r.cnt)}</td></tr>`
+function setStatGrid(gridId, items){
+  const el = document.getElementById(gridId);
+  if(!el) return;
+  el.innerHTML = items.map(([val,lbl,cls])=>
+    `<div class="stat-card ${cls||''}">
+      <div class="stat-val ${cls||'blue'}">${esc(fmtN(val))}</div>
+      <div class="stat-lbl">${esc(lbl)}</div>
+    </div>`
   ).join('');
 }
 
-// ─── Alerts table ────────────────────────────────────────────────────────────
+const PORT_NAMES = {
+  22:'SSH',23:'Telnet',25:'SMTP',53:'DNS',80:'HTTP',110:'POP3',
+  143:'IMAP',443:'HTTPS',3306:'MySQL',3389:'RDP',5900:'VNC',
+  8080:'HTTP-Alt',8443:'HTTPS-Alt',1433:'MSSQL',21:'FTP',
+  161:'SNMP',389:'LDAP',636:'LDAPS',445:'SMB',1723:'PPTP',
+};
+
+function mkChart(id, cfg){
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, cfg);
+}
+
+// ═══════════════════════════════════════════════════════
+// DATE FILTER
+// ═══════════════════════════════════════════════════════
+function applyDateFilter(){
+  gSince = document.getElementById('g-since').value;
+  gUntil = document.getElementById('g-until').value;
+  refreshCurrentView();
+}
+function clearDateFilter(){
+  gSince=''; gUntil='';
+  document.getElementById('g-since').value='';
+  document.getElementById('g-until').value='';
+  refreshCurrentView();
+}
+function dateParams(){
+  const p = new URLSearchParams();
+  if(gSince) p.set('since', gSince);
+  if(gUntil) p.set('until', gUntil);
+  return p.toString() ? '?'+p.toString() : '';
+}
+function dp(extra={}){
+  const p = {};
+  if(gSince) p.since=gSince;
+  if(gUntil) p.until=gUntil;
+  return new URLSearchParams({...p,...extra}).toString();
+}
+
+async function get(url){ const r = await fetch(url); return r.json(); }
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+const VIEW_TITLES = {
+  overview:'Overview',alerts:'Alerts',firewall:'Firewall Analysis',
+  dns:'DNS Analysis',users:'User Activity',threats:'Threat Intelligence',
+  network:'Network / DHCP',hunt:'Event Hunt',reports:'Reports & Export'
+};
+let currentView = 'overview';
+
+function showView(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  const el = document.getElementById('view-'+v);
+  if(el) el.classList.add('active');
+  const nav = document.getElementById('nav-'+v);
+  if(nav) nav.classList.add('active');
+  document.getElementById('page-title').textContent = VIEW_TITLES[v]||v;
+  currentView = v;
+  loadView(v);
+}
+
+function refreshCurrentView(){ loadView(currentView); }
+
+function loadView(v){
+  if(v==='overview')   loadOverview();
+  else if(v==='alerts') loadAlerts();
+  else if(v==='firewall') loadFirewall();
+  else if(v==='dns')    loadDNS();
+  else if(v==='users')  loadUsers();
+  else if(v==='threats') loadThreats();
+  else if(v==='network') loadNetwork();
+  else if(v==='reports') loadReports();
+}
+
+// ═══════════════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════════════
+function tick(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + ' ' +
+    now.toLocaleTimeString('en-IN',{hour12:false});
+}
+setInterval(tick,1000); tick();
+
+// ═══════════════════════════════════════════════════════
+// OVERVIEW
+// ═══════════════════════════════════════════════════════
+async function loadOverview(){
+  const [stats, alerts] = await Promise.all([
+    get('/api/stats'),
+    get('/api/alerts?unacked=1&limit=10')
+  ]);
+
+  document.getElementById('nb-alerts').textContent = stats.open_alerts||0;
+
+  setStatGrid('stat-grid',[
+    [stats.total_events,      'Total Events',          'blue'],
+    [stats.total_dns,         'DNS Queries',           'blue'],
+    [stats.open_alerts,       'Open Alerts',           stats.open_alerts>0?'orange':'green'],
+    [stats.critical_alerts,   'Critical Alerts',       stats.critical_alerts>0?'red':''],
+    [stats.denied_events,     'Denied Connections',    'red'],
+    [stats.atp_events,        'ATP / C2 Threats',      stats.atp_events>0?'red':''],
+    [stats.ips_events,        'IPS Events',            'orange'],
+    [stats.dos_events,        'DoS Attacks',           stats.dos_events>0?'red':''],
+    [stats.total_users,       'Unique Users',          'purple'],
+    [stats.unique_src_ips,    'Unique Source IPs',     'blue'],
+    [stats.vpn_sessions,      'VPN Sessions',          ''],
+    [stats.mac_bindings,      'MAC Bindings',          ''],
+  ]);
+
+  loadHourlyChart(24);
+  loadDnsHourly();
+
+  // Log types donut
+  const lt = await get('/api/chart/log_types');
+  mkChart('chartLogTypes',{type:'doughnut',
+    data:{labels:lt.map(r=>r.log_type),datasets:[{data:lt.map(r=>r.cnt),backgroundColor:PALETTE,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{position:'right',labels:{color:'#8fa3cc',font:{size:11},boxWidth:12}}}}});
+
+  // Alerts severity donut
+  const as = await get('/api/chart/alerts_severity');
+  const asC = as.map(r=>({Critical:C.red,High:C.orange,Medium:C.blue,Low:C.green}[r.severity]||C.gray));
+  mkChart('chartAlertSev',{type:'doughnut',
+    data:{labels:as.map(r=>r.severity+' ('+r.open+' open)'),datasets:[{data:as.map(r=>r.total),backgroundColor:asC,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+      plugins:{legend:{position:'bottom',labels:{color:'#8fa3cc',font:{size:11},boxWidth:10}}}}});
+
+  // Top domains
+  const dd = await get('/api/dns/top_domains');
+  mkTbody('tbl-top-domains-ov', dd.slice(0,15), r=>
+    `<tr><td class="truncate text-mono" title="${esc(r.query_name)}">${esc(r.query_name)}</td>
+         <td style="text-align:right; color:var(--accent2);">${fmtN(r.cnt)}</td></tr>`);
+
+  // Recent alerts
+  mkTbody('tbl-alerts-ov', alerts, r=>
+    `<tr onclick="openIPModal('${esc(r.src_ip)}')">
+      <td>${esc(r.id)}</td>
+      <td>${esc(r.rule_name)}</td>
+      <td>${sev(r.severity)}</td>
+      <td class="text-mono">${esc(r.src_ip||'—')}</td>
+      <td class="truncate" title="${esc(r.description)}">${esc(r.description)}</td>
+      <td>${fmtTs(r.created_at)}</td>
+    </tr>`);
+}
+
+async function loadHourlyChart(hours=24){
+  const h = await get('/api/chart/hourly?hours='+hours);
+  mkChart('chartHourly',{type:'bar',
+    data:{
+      labels:h.map(r=>r.hour?r.hour.slice(11,16):''),
+      datasets:[
+        {label:'Allowed',data:h.map(r=>r.allowed||0),backgroundColor:C.green+'44',borderColor:C.green,borderWidth:1},
+        {label:'Denied', data:h.map(r=>r.denied||0), backgroundColor:C.red+'44',  borderColor:C.red,   borderWidth:1},
+        {label:'Alert',  data:h.map(r=>r.alerted||0),backgroundColor:C.yellow+'44',borderColor:C.yellow,borderWidth:1},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8fa3cc',font:{size:11},boxWidth:12}}},
+      scales:{
+        x:{stacked:true,ticks:{color:'#4a6080',maxRotation:45},grid:{color:'rgba(30,48,80,0.5)'}},
+        y:{stacked:true,ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}}
+      }}});
+}
+
+async function loadDnsHourly(){
+  const h = await get('/api/dns/hourly');
+  mkChart('chartDnsHourly',{type:'line',
+    data:{labels:h.map(r=>r.hour?r.hour.slice(11,16):''),
+          datasets:[{label:'DNS Queries',data:h.map(r=>r.cnt),borderColor:C.cyan,backgroundColor:C.cyan+'22',fill:true,tension:0.4,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#4a6080',maxRotation:45},grid:{color:'rgba(30,48,80,0.5)'}},
+              y:{ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}}}}});
+}
+
+// ═══════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════
 async function loadAlerts(){
-  const sev   = document.getElementById('filterSev').value;
-  const url   = '/api/alerts?unacked=1&limit=200' + (sev ? `&severity=${sev}` : '');
-  const data  = await fetch(url).then(r=>r.json());
-  const tbody = document.querySelector('#tblAlerts tbody');
-  tbody.innerHTML = data.map(a=>`
+  selectedAlerts.clear();
+  const sev  = document.getElementById('al-severity').value;
+  const rule = document.getElementById('al-rule').value;
+  const ip   = document.getElementById('al-ip').value;
+  const st   = document.getElementById('al-status').value;
+  const rows = await get('/api/alerts?'+new URLSearchParams({
+    severity:sev, rule_id:rule, src_ip:ip, unacked:st,
+    since:gSince, until:gUntil, limit:500
+  }));
+
+  mkTbody('tbl-alerts', rows, r=>`
+    <tr class="${r.acknowledged?'':''}">
+      <td><input type="checkbox" class="alert-chk" value="${r.id}" onchange="toggleAlertSel(${r.id},this.checked)"></td>
+      <td>${esc(r.id)}</td>
+      <td>${esc(r.rule_name)}</td>
+      <td>${sev(r.severity)}</td>
+      <td>${ipLink(r.src_ip)}</td>
+      <td class="truncate" style="max-width:300px;" title="${esc(r.description)}">${esc(r.description)}</td>
+      <td>${fmtTs(r.created_at)}</td>
+      <td>${r.acknowledged
+        ? `<span style="color:var(--text3);font-size:11px;">✓ ${esc(r.ack_by||'')}</span>`
+        : `<button class="btn-soc" style="padding:2px 10px; font-size:11px;" onclick="ackOne(${r.id},this)">ACK</button>`}</td>
+    </tr>`);
+
+  // Rule summary
+  const rs = await get('/api/alerts/rule_summary');
+  mkTbody('tbl-rule-summary', rs, r=>`
     <tr>
-      <td>${a.id}</td>
-      <td>${a.rule_name}</td>
-      <td>${sevBadge(a.severity)}</td>
-      <td>${ipLink(a.src_ip)}</td>
-      <td class="text-truncate" style="max-width:350px;" title="${a.description}">${a.description}</td>
-      <td>${(a.created_at||'').slice(0,16)}</td>
-      <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="ackAlert(${a.id},this)">Ack</button></td>
-    </tr>
-  `).join('') || '<tr><td colspan="7" class="text-center text-secondary py-3">No open alerts</td></tr>';
+      <td>${esc(r.rule_id)} — ${esc(r.rule_name)}</td>
+      <td>${sev(r.severity)}</td>
+      <td>${fmtN(r.total)}</td>
+      <td style="color:${r.open>0?'var(--red)':'var(--green)'}; font-weight:700;">${fmtN(r.open)}</td>
+    </tr>`);
+
+  // Populate rule dropdown
+  const sel = document.getElementById('al-rule');
+  if(sel.options.length===1){
+    rs.forEach(r=>{
+      const o=document.createElement('option'); o.value=r.rule_id; o.textContent=r.rule_id+' — '+r.rule_name;
+      sel.appendChild(o);
+    });
+  }
+
+  // Severity chart
+  const as = await get('/api/chart/alerts_severity');
+  const asC = as.map(r=>({Critical:C.red,High:C.orange,Medium:C.blue,Low:C.green}[r.severity]||C.gray));
+  mkChart('chartAlertSev2',{type:'bar',
+    data:{labels:as.map(r=>r.severity),
+          datasets:[
+            {label:'Total',data:as.map(r=>r.total),backgroundColor:asC.map(c=>c+'77'),borderColor:asC,borderWidth:1},
+            {label:'Open', data:as.map(r=>r.open), backgroundColor:asC,borderColor:asC,borderWidth:1},
+          ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8fa3cc',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}},
+              y:{ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}}}}});
 }
 
-async function ackAlert(id, btn){
-  await fetch(`/api/alerts/${id}/ack`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{"analyst":"dashboard"}'});
-  btn.closest('tr').remove();
-}
+function toggleAlertSel(id, checked){ checked ? selectedAlerts.add(id) : selectedAlerts.delete(id); }
 
-// ─── Event search ────────────────────────────────────────────────────────────
-async function searchEvents(){
-  const params = new URLSearchParams({
-    limit: 200,
-    src_ip:     document.getElementById('qSrcIp').value,
-    dst_ip:     document.getElementById('qDstIp').value,
-    log_source: document.getElementById('qSource').value,
-    action:     document.getElementById('qAction').value,
-    since:      document.getElementById('qSince').value,
+function toggleAll(cb){
+  document.querySelectorAll('.alert-chk').forEach(c=>{
+    c.checked=cb.checked;
+    toggleAlertSel(parseInt(c.value), cb.checked);
   });
-  const data  = await fetch('/api/events?' + params).then(r=>r.json());
-  const tbody = document.querySelector('#tblEvents tbody');
-  tbody.innerHTML = data.map(e=>`
-    <tr>
-      <td>${(e.ts||'').slice(0,16)}</td>
-      <td>${e.log_source||''}</td>
-      <td>${e.log_type||''}</td>
-      <td>${e.log_component||''}</td>
-      <td><span class="badge bg-${e.action==='Allow'?'success':e.action==='Deny'?'danger':'warning text-dark'}">${e.action||''}</span></td>
-      <td>${ipLink(e.src_ip)}</td>
-      <td>${ipLink(e.dst_ip)}</td>
-      <td>${e.dst_port||''}</td>
-      <td>${e.username||''}</td>
-      <td class="text-truncate" style="max-width:200px;" title="${e.message||''}">${e.message||''}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="10" class="text-center text-secondary py-3">No results</td></tr>';
 }
 
-// ─── IP Lookup ────────────────────────────────────────────────────────────────
-async function lookupIp(ip){
-  document.getElementById('ipModalTitle').textContent = `IP Activity: ${ip}`;
-  document.getElementById('ipModalBody').innerHTML = '<p class="text-secondary">Loading…</p>';
-  new bootstrap.Modal(document.getElementById('ipModal')).show();
-
-  const d = await fetch(`/api/ip_lookup/${ip}`).then(r=>r.json());
-  const section = (title, rows, cols) => {
-    if(!rows||!rows.length) return `<p class="text-secondary small">No ${title}</p>`;
-    const ths = cols.map(c=>`<th>${c}</th>`).join('');
-    const trs = rows.map(r=>`<tr>${cols.map(c=>`<td class="small">${r[c]??'—'}</td>`).join('')}</tr>`).join('');
-    return `<h6 class="text-secondary mt-3">${title} (${rows.length})</h6>
-      <div style="max-height:200px;overflow:auto;">
-      <table class="table table-sm table-hover mb-0"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
-  };
-
-  document.getElementById('ipModalBody').innerHTML =
-    section('Alerts', d.alerts, ['id','rule_name','severity','description','created_at']) +
-    section('Firewall Events', d.firewall, ['ts','log_type','log_component','action','dst_ip','dst_port','protocol']) +
-    section('DNS Queries', d.dns, ['ts','query_name','query_type']) +
-    section('RADIUS', d.radius, ['ts','username','result','nas_ip']) +
-    section('DHCP', d.dhcp, ['ts','event_type','mac_address','hostname']);
-}
-
-// ─── Run rules ───────────────────────────────────────────────────────────────
-async function runRules(){
-  const btn = document.querySelector('button[onclick="runRules()"]');
-  btn.disabled = true; btn.textContent = '⏳ Running…';
-  const r = await fetch('/api/run_rules', {method:'POST'}).then(r=>r.json());
-  btn.disabled = false; btn.textContent = '▶ Run Rules';
-  alert(`Rules complete. ${r.new_alerts} new alert(s) generated.`);
+async function ackOne(id, btn){
+  btn.disabled=true;
+  await fetch('/api/alerts/'+id+'/ack',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"analyst":"soc-analyst"}'});
   loadAlerts();
 }
 
-// ─── Init ────────────────────────────────────────────────────────────────────
-initCharts();
-loadAlerts();
+async function bulkAckSelected(){
+  if(!selectedAlerts.size){ alert('No alerts selected.'); return; }
+  const ids = Array.from(selectedAlerts);
+  const r = await fetch('/api/alerts/bulk_ack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids,analyst:'soc-analyst'})});
+  const d = await r.json();
+  alert(`Acknowledged ${d.acked} alerts.`);
+  loadAlerts();
+}
+
+function exportAlerts(fmt){ window.open('/api/alerts/export?format='+fmt); }
+
+// ═══════════════════════════════════════════════════════
+// FIREWALL
+// ═══════════════════════════════════════════════════════
+async function loadFirewall(){
+  const [topSrc, topDst, rules, protos, ports, apps, bw] = await Promise.all([
+    get('/api/firewall/top_src?'+dp({action:'Deny'})),
+    get('/api/firewall/top_dst?'+dp()),
+    get('/api/firewall/top_rules?'+dp()),
+    get('/api/firewall/protocols?'+dp()),
+    get('/api/firewall/top_ports?'+dp()),
+    get('/api/firewall/applications?'+dp()),
+    get('/api/firewall/bandwidth?'+dp()),
+  ]);
+
+  // Stats
+  const total = topSrc.reduce((a,r)=>a+r.cnt,0);
+  setStatGrid('fw-stat-grid',[
+    [topSrc.reduce((a,r)=>a+r.cnt,0),'Denied Events','red'],
+    [topDst.reduce((a,r)=>a+(r.cnt-r.denied),0),'Allowed Events','green'],
+    [topSrc.length,'Unique Blocked Src IPs','orange'],
+    [rules.length,'Firewall Rules Active','blue'],
+    [apps.length,'Applications Detected','blue'],
+    [bw.reduce((a,r)=>a+(r.total||0),0),'Total Bytes Transferred','purple'],
+  ]);
+
+  mkTbody('tbl-fw-src',topSrc, r=>`<tr>
+    <td>${ipLink(r.src_ip)}</td>
+    <td style="color:var(--red); font-weight:600;">${fmtN(r.cnt)}</td>
+    <td>${fmtN(r.targets)}</td><td>${fmtN(r.ports)}</td></tr>`);
+
+  mkTbody('tbl-fw-dst',topDst, r=>`<tr>
+    <td>${ipLink(r.dst_ip)}</td>
+    <td>${fmtN(r.cnt)}</td>
+    <td style="color:var(--red);">${fmtN(r.denied)}</td></tr>`);
+
+  mkTbody('tbl-fw-rules',rules, r=>`<tr>
+    <td class="truncate" title="${esc(r.fw_rule_name)}" style="max-width:250px;">${esc(r.fw_rule_name)}</td>
+    <td>${fmtN(r.cnt)}</td>
+    <td style="color:var(--green);">${fmtN(r.allowed)}</td>
+    <td style="color:var(--red);">${fmtN(r.denied)}</td></tr>`);
+
+  mkTbody('tbl-fw-ports',ports, r=>`<tr>
+    <td class="text-mono" style="color:var(--accent2);">${r.port}</td>
+    <td style="color:var(--text3);">${PORT_NAMES[r.port]||'—'}</td>
+    <td>${fmtN(r.cnt)}</td>
+    <td style="color:var(--red);">${fmtN(r.denied)}</td></tr>`);
+
+  mkTbody('tbl-fw-apps',apps, r=>`<tr>
+    <td>${esc(r.application)}</td>
+    <td>${fmtN(r.cnt)}</td>
+    <td>${fmtB(r.total_bytes)}</td></tr>`);
+
+  // Protocols doughnut
+  mkChart('chartProtocols',{type:'doughnut',
+    data:{labels:protos.map(r=>r.protocol),datasets:[{data:protos.map(r=>r.cnt),backgroundColor:PALETTE,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+      plugins:{legend:{position:'right',labels:{color:'#8fa3cc',font:{size:11},boxWidth:10}}}}});
+
+  // Bandwidth bar
+  const bwTop = bw.slice(0,12);
+  mkChart('chartBandwidth',{type:'bar', indexAxis:'y',
+    data:{labels:bwTop.map(r=>r.src_ip),
+      datasets:[
+        {label:'Sent',  data:bwTop.map(r=>Math.round((r.sent||0)/1024/1024)),  backgroundColor:C.blue+'99'},
+        {label:'Recv',  data:bwTop.map(r=>Math.round((r.recv||0)/1024/1024)),  backgroundColor:C.green+'99'},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{labels:{color:'#8fa3cc',font:{size:11}}},
+               tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw+' MB'}}},
+      scales:{x:{stacked:true,ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'},title:{display:true,text:'MB',color:'#4a6080'}},
+              y:{stacked:true,ticks:{color:'#8fa3cc',font:{size:10}},grid:{color:'rgba(30,48,80,0.5)'}}}}});
+}
+
+async function loadFwTopSrc(action='Deny'){
+  const rows = await get('/api/firewall/top_src?'+dp({action}));
+  mkTbody('tbl-fw-src',rows, r=>`<tr>
+    <td>${ipLink(r.src_ip)}</td>
+    <td style="color:${action==='Deny'?'var(--red)':'var(--green)'}; font-weight:600;">${fmtN(r.cnt)}</td>
+    <td>${fmtN(r.targets)}</td><td>${fmtN(r.ports)}</td></tr>`);
+}
+
+// ═══════════════════════════════════════════════════════
+// DNS
+// ═══════════════════════════════════════════════════════
+async function loadDNS(){
+  const [sum, domains, clients, types, suspicious] = await Promise.all([
+    get('/api/dns/summary?'+dp()),
+    get('/api/dns/top_domains?'+dp()),
+    get('/api/dns/top_clients?'+dp()),
+    get('/api/dns/query_types'),
+    get('/api/dns/suspicious?'+dp()),
+  ]);
+
+  setStatGrid('dns-stat-grid',[
+    [sum.total,          'Total DNS Queries','blue'],
+    [sum.unique_clients, 'Unique Clients',   'blue'],
+    [sum.unique_domains, 'Unique Domains',   'purple'],
+    [suspicious.length,  'Suspicious Queries','orange'],
+  ]);
+
+  mkTbody('tbl-dns-domains',domains, r=>`<tr>
+    <td class="truncate text-mono" title="${esc(r.query_name)}" style="max-width:280px;">${esc(r.query_name)}</td>
+    <td style="color:var(--accent2);">${fmtN(r.cnt)}</td>
+    <td>${fmtN(r.clients)}</td></tr>`);
+
+  mkTbody('tbl-dns-clients',clients, r=>`<tr>
+    <td>${ipLink(r.client_ip)}</td>
+    <td style="color:var(--accent2);">${fmtN(r.cnt)}</td>
+    <td>${fmtN(r.unique_domains)}</td></tr>`);
+
+  mkTbody('tbl-dns-susp',suspicious, r=>`<tr class="threat-row">
+    <td class="truncate text-mono" title="${esc(r.query_name)}" style="max-width:260px; color:var(--orange);">${esc(r.query_name)}</td>
+    <td>${ipLink(r.client_ip)}</td>
+    <td style="color:var(--red); font-weight:700;">${fmtN(r.cnt)}</td>
+    <td>${fmtTs(r.first_seen)}</td>
+    <td>${fmtTs(r.last_seen)}</td></tr>`);
+
+  mkChart('chartDnsTypes',{type:'doughnut',
+    data:{labels:types.map(r=>r.query_type),datasets:[{data:types.map(r=>r.cnt),backgroundColor:PALETTE,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+      plugins:{legend:{position:'right',labels:{color:'#8fa3cc',font:{size:11},boxWidth:10}}}}});
+}
+
+// ═══════════════════════════════════════════════════════
+// USERS
+// ═══════════════════════════════════════════════════════
+async function loadUsers(){
+  const [logins, radiusUsers, failed, vpn] = await Promise.all([
+    get('/api/users/logins?'+dp()),
+    get('/api/users/radius?'+dp()),
+    get('/api/users/failed_logins?'+dp()),
+    get('/api/users/vpn?'+dp()),
+  ]);
+
+  mkTbody('tbl-user-logins',logins, r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td style="color:var(--accent2); font-weight:600;">${esc(r.username||'—')}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td><span style="color:var(--text3);">${esc(r.log_component)}</span></td>
+    <td>${act(r.action||'Info')}</td>
+    <td class="truncate text-muted" title="${esc(r.message)}" style="max-width:240px;">${esc(r.message||'—')}</td></tr>`);
+
+  mkTbody('tbl-radius-users',radiusUsers, r=>`<tr>
+    <td style="color:var(--accent2); font-weight:600;" onclick="userLookupDirect('${esc(r.username)}')" style="cursor:pointer;">
+      ${esc(r.username)}</td>
+    <td>${fmtN(r.total)}</td>
+    <td style="color:var(--green);">${fmtN(r.accepted)}</td>
+    <td style="color:${r.rejected>0?'var(--red)':'var(--text3)'};">${fmtN(r.rejected)}</td>
+    <td>${fmtTs(r.last_seen)}</td></tr>`);
+
+  mkTbody('tbl-failed-logins',failed, r=>`<tr class="${r.failures>=10?'threat-row':''}">
+    <td style="color:var(--orange); font-weight:600;">${esc(r.username)}</td>
+    <td>${ipLink(r.nas_ip)}</td>
+    <td style="color:var(--red); font-weight:700;">${fmtN(r.failures)}</td>
+    <td class="text-muted">${fmtTs(r.first)}</td>
+    <td class="text-muted">${fmtTs(r.last)}</td></tr>`);
+
+  mkTbody('tbl-vpn',vpn, r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td style="color:var(--accent2);">${esc(r.username||'—')}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td class="text-muted">${esc(r.log_component)}</td>
+    <td>${act(r.action||'Info')}</td></tr>`);
+}
+
+async function userLookup(){
+  const un = document.getElementById('user-search-input').value.trim();
+  if(!un) return;
+  userLookupDirect(un);
+}
+
+async function userLookupDirect(un){
+  document.getElementById('user-search-input').value = un;
+  const d = await get('/api/user_lookup/'+encodeURIComponent(un));
+  const el = document.getElementById('user-lookup-result');
+  el.style.display='block';
+
+  const section = (title,rows,cols,colorFn)=>{
+    if(!rows?.length) return `<p style="color:var(--text3); font-size:12px; margin:8px 0;">${title}: No records</p>`;
+    const ths = cols.map(c=>`<th>${c}</th>`).join('');
+    const trs = rows.map(r=>`<tr>${cols.map(c=>`<td class="truncate" style="max-width:200px;">${esc(r[c]??'—')}</td>`).join('')}</tr>`).join('');
+    return `<div style="margin-bottom:14px;">
+      <div style="font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; margin-bottom:6px;">${title} (${rows.length})</div>
+      <div style="max-height:150px;overflow:auto;"><table class="soc-table">${ths?`<thead><tr>${ths}</tr></thead>`:''}<tbody>${trs}</tbody></table></div></div>`;
+  };
+
+  el.innerHTML =
+    `<div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:14px;">
+      <div style="font-size:14px; font-weight:700; color:var(--accent2); margin-bottom:12px;">👤 ${esc(un)}</div>` +
+    section('Firewall Events', d.fw_events, ['ts','log_component','src_ip','action','message']) +
+    section('RADIUS Auth',     d.radius,    ['ts','result','nas_ip','client_ip']) +
+    section('VPN Sessions',    d.vpn,       ['ts','src_ip','action','log_component','message']) +
+    section('Alerts',          d.alerts,    ['id','rule_name','severity','description','created_at']) +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════════════
+// THREATS
+// ═══════════════════════════════════════════════════════
+async function loadThreats(){
+  const [atp, atpSum, ips, dos, topHosts] = await Promise.all([
+    get('/api/threats/atp?'+dp()),
+    get('/api/threats/atp_summary'),
+    get('/api/threats/ips?'+dp()),
+    get('/api/threats/dos?'+dp()),
+    get('/api/threats/top_hosts'),
+  ]);
+
+  setStatGrid('threat-stat-grid',[
+    [atp.length,     'ATP/C2 Events',      'red'],
+    [atpSum.length,  'Unique Threat Names', 'orange'],
+    [ips.length,     'IPS Signature Hits',  'orange'],
+    [dos.length,     'DoS Attacks',         'red'],
+    [topHosts.length,'Compromised Hosts',   'red'],
+  ]);
+
+  mkTbody('tbl-atp',atp, r=>`<tr class="threat-row">
+    <td>${fmtTs(r.ts)}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td>${ipLink(r.dst_ip)}</td>
+    <td style="color:var(--red); font-weight:600;">${esc(r.threat_name||'—')}</td>
+    <td class="truncate text-mono" title="${esc(r.url)}" style="max-width:200px;">${esc(r.url||'—')}</td></tr>`);
+
+  mkTbody('tbl-atp-summary',atpSum, r=>`<tr>
+    <td style="color:var(--orange); font-weight:600;">${esc(r.threat_name)}</td>
+    <td style="color:var(--red); font-weight:700;">${fmtN(r.hits)}</td>
+    <td style="color:var(--orange);">${fmtN(r.infected_hosts)}</td>
+    <td class="text-muted">${fmtTs(r.first_seen)}</td></tr>`);
+
+  mkTbody('tbl-ips',ips, r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td class="truncate" title="${esc(r.message)}" style="max-width:200px;">${esc(r.message||'—')}</td>
+    <td>${sev(r.severity||'Medium')}</td></tr>`);
+
+  mkTbody('tbl-dos',dos, r=>`<tr class="threat-row">
+    <td>${fmtTs(r.ts)}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td class="text-muted">${esc(r.protocol||'—')}</td>
+    <td class="truncate text-muted" style="max-width:220px;">${esc(r.message||'—')}</td></tr>`);
+
+  mkTbody('tbl-threat-hosts',topHosts, r=>`<tr>
+    <td>${ipLink(r.src_ip)}</td>
+    <td style="color:var(--red); font-weight:700;">${fmtN(r.incidents)}</td>
+    <td>${fmtN(r.threat_types)}</td>
+    <td class="text-muted">${fmtTs(r.last_seen)}</td></tr>`);
+}
+
+// ═══════════════════════════════════════════════════════
+// NETWORK
+// ═══════════════════════════════════════════════════════
+async function loadNetwork(){
+  const [dhcp, vpn] = await Promise.all([
+    get('/api/network/dhcp_recent?'+dp()),
+    get('/api/network/vpn_sessions?'+dp()),
+  ]);
+  mkTbody('tbl-dhcp',dhcp, r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td><span style="color:var(--accent2);">${esc(r.event_type)}</span></td>
+    <td class="text-mono">${esc(r.ip_address||'—')}</td>
+    <td class="text-mono" style="color:var(--text3);">${esc(r.mac_address||'—')}</td>
+    <td>${esc(r.hostname||'—')}</td></tr>`);
+  mkTbody('tbl-vpn-net',vpn, r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td style="color:var(--accent2);">${esc(r.username||'—')}</td>
+    <td>${ipLink(r.src_ip)}</td>
+    <td class="text-muted">${esc(r.log_component)}</td>
+    <td>${act(r.action||'Info')}</td></tr>`);
+}
+
+async function macIpLookup(){
+  const v = document.getElementById('mac-ip-input').value.trim();
+  if(!v) return;
+  const isIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(v);
+  const url = isIp ? '/api/network/mac_ip?ip='+encodeURIComponent(v) : '/api/network/mac_ip?mac='+encodeURIComponent(v);
+  const rows = await get(url);
+  const el = document.getElementById('mac-ip-result');
+  if(!rows.length){ el.innerHTML='<p style="color:var(--text3);">No records found.</p>'; return; }
+  el.innerHTML='<div style="max-height:250px;overflow:auto;"><table class="soc-table"><thead><tr><th>Time</th><th>MAC</th><th>IP</th><th>Interface</th></tr></thead><tbody>'
+    +rows.map(r=>`<tr><td>${fmtTs(r.ts)}</td><td class="text-mono">${esc(r.mac_address)}</td><td>${ipLink(r.ip_address)}</td><td>${esc(r.interface||'—')}</td></tr>`).join('')
+    +'</tbody></table></div>';
+}
+
+// ═══════════════════════════════════════════════════════
+// HUNT
+// ═══════════════════════════════════════════════════════
+async function huntSearch(){
+  const p = {
+    src_ip:   document.getElementById('h-src').value,
+    dst_ip:   document.getElementById('h-dst').value,
+    port:     document.getElementById('h-port').value,
+    log_source:document.getElementById('h-source').value,
+    log_type:  document.getElementById('h-type').value,
+    action:    document.getElementById('h-action').value,
+    username:  document.getElementById('h-user').value,
+    protocol:  document.getElementById('h-proto').value,
+    keyword:   document.getElementById('h-kw').value,
+    limit:     document.getElementById('h-limit').value,
+    since: gSince, until: gUntil,
+  };
+  const rows = await get('/api/events?'+new URLSearchParams(p));
+  document.getElementById('hunt-count').textContent = `${rows.length.toLocaleString()} results`;
+  mkTbody('tbl-hunt',rows, r=>`<tr onclick="openIPModal('${esc(r.src_ip)}')">
+    <td style="white-space:nowrap;">${fmtTs(r.ts)}</td>
+    <td>${esc(r.log_source||'')}</td>
+    <td>${esc(r.log_type||'')}</td>
+    <td>${esc(r.log_component||'')}</td>
+    <td>${act(r.action||'—')}</td>
+    <td class="text-mono">${esc(r.src_ip||'—')}</td>
+    <td class="text-mono">${esc(r.dst_ip||'—')}</td>
+    <td>${esc(r.dst_port||'')}</td>
+    <td>${esc(r.protocol||'')}</td>
+    <td>${esc(r.username||'')}</td>
+    <td class="truncate" style="max-width:120px;">${esc(r.application||'')}</td>
+    <td style="color:var(--red);">${esc(r.threat_name||'')}</td>
+    <td class="truncate" title="${esc(r.message)}" style="max-width:180px;">${esc(r.message||r.url||'')}</td>
+  </tr>`);
+}
+
+function exportEvents(fmt){ window.open('/api/events/export?format='+fmt+'&limit=5000'); }
+
+// ═══════════════════════════════════════════════════════
+// REPORTS
+// ═══════════════════════════════════════════════════════
+async function loadReports(){
+  const d = await get('/api/report/executive');
+  const s = d.stats;
+
+  setStatGrid('report-stat-grid',[
+    [s.total_events,'Total Events','blue'],
+    [s.total_dns,'DNS Queries','blue'],
+    [s.open_alerts,'Open Alerts',s.open_alerts>0?'orange':'green'],
+    [s.files_ingested,'Files Ingested','purple'],
+  ]);
+
+  // Executive summary text
+  const now = new Date().toLocaleString('en-IN');
+  const top3 = (d.top_threats||[]).slice(0,3).map(t=>`${t.threat_name} (${t.cnt})`).join(', ')||'None';
+  document.getElementById('exec-summary').innerHTML = `
+    <table style="width:100%; border-collapse:collapse;">
+      <tr><td style="color:var(--text3); width:200px; padding:4px 0;">Report Generated</td><td>${now}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Organisation</td><td>Indian Institute of Science, Bangalore</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">SOC Team</td><td>ISO Security Team</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;"> </td><td></td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Total Log Events</td><td style="color:var(--accent2); font-weight:700;">${fmtN(s.total_events)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">DNS Queries</td><td style="color:var(--accent2); font-weight:700;">${fmtN(s.total_dns)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">RADIUS Auth Records</td><td>${fmtN(s.total_radius)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">DHCP Events</td><td>${fmtN(s.total_dhcp)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Open Alerts</td><td style="color:${s.open_alerts>0?'var(--orange)':'var(--green)'}; font-weight:700;">${fmtN(s.open_alerts)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Critical Alerts</td><td style="color:${s.critical_alerts>0?'var(--red)':'var(--green)'}; font-weight:700;">${fmtN(s.critical_alerts)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Denied Connections</td><td style="color:var(--red);">${fmtN(s.denied_events)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">ATP/Threat Events</td><td style="color:${s.atp_events>0?'var(--red)':'var(--green)'};">${fmtN(s.atp_events)}</td></tr>
+      <tr><td style="color:var(--text3); padding:4px 0;">Top Threats Detected</td><td style="color:var(--orange);">${top3}</td></tr>
+    </table>`;
+
+  // 7-day chart
+  const daily = d.daily_events||[];
+  mkChart('chartDaily7',{type:'bar',
+    data:{labels:daily.map(r=>r.day),datasets:[{label:'Events per Day',data:daily.map(r=>r.cnt),backgroundColor:C.blue+'99',borderColor:C.blue,borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}},
+              y:{ticks:{color:'#4a6080'},grid:{color:'rgba(30,48,80,0.5)'}}}}});
+}
+
+function printReport(){ window.print(); }
+
+// ═══════════════════════════════════════════════════════
+// IP PIVOT MODAL
+// ═══════════════════════════════════════════════════════
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+async function openIPModal(ip){
+  if(!ip || ip==='—') return;
+  document.getElementById('ip-modal-ip').textContent = ip;
+  document.getElementById('ip-modal').classList.add('open');
+
+  // Reset tabs
+  document.querySelectorAll('#ip-modal .soc-tab').forEach((t,i)=>{t.classList.toggle('active',i===0);});
+  document.querySelectorAll('#ip-modal .soc-tab-pane').forEach((p,i)=>{p.classList.toggle('active',i===0);});
+  document.querySelectorAll('#ip-modal tbody').forEach(b=>{b.innerHTML='<tr><td colspan="9" style="text-align:center; color:var(--text3); padding:16px;">Loading…</td></tr>';});
+
+  const d = await get('/api/ip_lookup/'+encodeURIComponent(ip));
+
+  mkTbody('ip-tbl-fw',d.firewall||[], r=>`<tr>
+    <td style="white-space:nowrap;">${fmtTs(r.ts)}</td>
+    <td>${esc(r.log_type||'')}</td><td>${esc(r.log_component||'')}</td>
+    <td>${act(r.action||'—')}</td>
+    <td class="text-mono">${esc(r.dst_ip||'—')}</td>
+    <td>${esc(r.dst_port||'')}</td><td>${esc(r.protocol||'')}</td>
+    <td>${esc(r.username||'')}</td>
+    <td class="truncate" style="max-width:160px;">${esc(r.message||'')}</td></tr>`);
+
+  mkTbody('ip-tbl-dns',d.dns||[], r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td class="text-mono truncate" style="max-width:280px;">${esc(r.query_name)}</td>
+    <td>${esc(r.query_type)}</td></tr>`);
+
+  mkTbody('ip-tbl-radius',d.radius||[], r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td style="color:var(--accent2);">${esc(r.username||'—')}</td>
+    <td><span style="color:${r.result==='Accept'?'var(--green)':'var(--red)'};">${esc(r.result||'')}</span></td>
+    <td class="text-mono">${esc(r.nas_ip||'—')}</td></tr>`);
+
+  mkTbody('ip-tbl-dhcp',d.dhcp||[], r=>`<tr>
+    <td>${fmtTs(r.ts)}</td>
+    <td>${esc(r.event_type)}</td>
+    <td class="text-mono">${esc(r.mac_address||'—')}</td>
+    <td>${esc(r.hostname||'—')}</td></tr>`);
+
+  mkTbody('ip-tbl-alerts',d.alerts||[], r=>`<tr>
+    <td>${esc(r.id)}</td>
+    <td>${esc(r.rule_name)}</td>
+    <td>${sev(r.severity)}</td>
+    <td class="truncate" style="max-width:300px;">${esc(r.description)}</td>
+    <td>${fmtTs(r.created_at)}</td></tr>`);
+
+  mkTbody('ip-tbl-threats',d.threats||[], r=>`<tr class="threat-row">
+    <td>${fmtTs(r.ts)}</td>
+    <td style="color:var(--red); font-weight:600;">${esc(r.threat_name||'—')}</td>
+    <td class="truncate text-mono" style="max-width:200px;">${esc(r.url||'—')}</td>
+    <td class="text-mono">${esc(r.dst_ip||'—')}</td></tr>`);
+}
+
+function showTab(tab, paneId){
+  const modal = tab.closest('.soc-modal-body, .soc-card-body');
+  tab.closest('.soc-tabs').querySelectorAll('.soc-tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  tab.closest('.soc-modal-body, .soc-card-body') || document.body;
+  document.querySelectorAll('.soc-tab-pane').forEach(p=>{
+    if(p.id===paneId) p.classList.add('active');
+    else if(tab.closest('.soc-tabs').parentElement.contains(p)) p.classList.remove('active');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// RUN RULES
+// ═══════════════════════════════════════════════════════
+async function runRules(){
+  const btn = document.querySelector('.btn-soc.success');
+  btn.textContent='⏳ Running…'; btn.disabled=true;
+  try{
+    const r = await fetch('/api/run_rules',{method:'POST'}).then(r=>r.json());
+    btn.textContent='▶ Run Rules'; btn.disabled=false;
+    document.getElementById('ingest-status').textContent = `✓ ${r.new_alerts} new alerts`;
+    loadView(currentView);
+  } catch(e){
+    btn.textContent='▶ Run Rules'; btn.disabled=false;
+  }
+}
+
+// Close modal on overlay click
+document.getElementById('ip-modal').addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeModal('ip-modal');
+});
+
+// ═══════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════
+loadOverview();
+// Auto-refresh alerts badge every 60s
+setInterval(async()=>{
+  const s = await get('/api/stats');
+  document.getElementById('nb-alerts').textContent = s.open_alerts||0;
+}, 60000);
 </script>
 </body>
 </html>

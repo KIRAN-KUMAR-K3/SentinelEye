@@ -56,5 +56,5 @@ BRUTE_FORCE_WINDOW_SEC    = 300   # 5-minute window
 BRUTE_FORCE_THRESHOLD     = 10    # failed logins before alert
 PORT_SCAN_WINDOW_SEC      = 60
 PORT_SCAN_THRESHOLD       = 20    # distinct dst ports from single src
-DNS_TUNNEL_QUERY_THRESHOLD= 200   # DNS queries/min from single host
+DNS_TUNNEL_QUERY_THRESHOLD= 5000  # IISc DNS servers generate high volume — tune per investigation   # DNS queries/min from single host
 LARGE_TRANSFER_BYTES      = 100_000_000  # 100 MB outbound

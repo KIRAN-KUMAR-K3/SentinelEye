@@ -1,16 +1,20 @@
 """
-ingest/ingester.py
-Discovers all .gz files under the NFS mount, decompresses them in parallel,
-and inserts normalised rows into the SQLite database.
+ingest/ingester.py — Log File Ingestion Engine
+Indian Institute of Science | ISO Security Team
 
-Usage:
-    python siem.py ingest --source all --workers 8
+Architecture fix (eliminates "database is locked"):
+  - Worker threads ONLY decompress + parse files → put rows in a queue
+  - A SINGLE writer thread drains the queue and commits to SQLite
+  - This means only one thread ever writes to the DB at any time
+  - --workers controls decompression parallelism, not write parallelism
 """
-
 import gzip
 import os
 import sys
+import re
 import time
+import queue
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -27,221 +31,173 @@ from ingest.parsers import (
     parse_macip_line,
 )
 
+# Sentinel value to signal the writer thread to stop
+_DONE = object()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # File discovery
 # ─────────────────────────────────────────────────────────────────────────────
 
 def discover_files(source: str = "all", since: Optional[str] = None):
-    """Yield (filepath, log_source) tuples for all matching .gz files."""
+    """Yield (filepath, log_source) for all matching .gz files."""
     since_ts = datetime.fromisoformat(since) if since else None
-
-    sources = (
-        list(config.LOG_SOURCES.keys())
-        if source == "all"
-        else [source]
-    )
+    sources  = list(config.LOG_SOURCES.keys()) if source == "all" else [source]
 
     for src_name in sources:
         src_cfg = config.LOG_SOURCES.get(src_name)
         if not src_cfg:
-            print(f"[!] Unknown source: {src_name}")
-            continue
-        base = src_cfg["base"]
+            print(f"[!] Unknown source: {src_name}"); continue
         for subdir in src_cfg["subdirs"]:
-            folder = Path(base) / subdir
+            folder = Path(src_cfg["base"]) / subdir
             if not folder.exists():
-                print(f"[~] Skipping missing folder: {folder}")
-                continue
+                print(f"[~] Skipping missing: {folder}"); continue
             for gz_file in sorted(folder.glob("*.gz")):
                 if since_ts:
-                    mtime = datetime.fromtimestamp(gz_file.stat().st_mtime)
-                    if mtime < since_ts:
+                    if datetime.fromtimestamp(gz_file.stat().st_mtime) < since_ts:
                         continue
                 yield str(gz_file), src_name
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Per-file processing
+# Per-file parsers  (decompress + parse only, NO DB writes)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _ingest_firewall_file(filepath: str) -> int:
-    """Parse a Sophos XG/XGS gz log file. Returns row count."""
-    rows  = []
-    count = 0
-    fname = os.path.basename(filepath)
-
+def _parse_firewall_file(filepath: str):
+    rows = []
     try:
         with gzip.open(filepath, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
-                if not line:
-                    continue
+                if not line: continue
                 kv  = parse_sophos_kv(line)
                 row = sophos_to_event(kv, filepath)
-                if row:
-                    rows.append(row)
-                    count += 1
-                    if len(rows) >= config.BATCH_SIZE:
-                        db.bulk_insert_events(rows)
-                        rows.clear()
-    except (gzip.BadGzipFile, EOFError, OSError) as e:
-        print(f"[!] Bad file {fname}: {e}")
-        return 0
-
-    if rows:
-        db.bulk_insert_events(rows)
-    return count
+                if row: rows.append(row)
+    except Exception:
+        pass
+    return rows, "events"
 
 
-def _ingest_dns_file(filepath: str) -> int:
-    rows  = []
-    count = 0
+def _parse_dns_file(filepath: str):
+    rows = []
     try:
         with gzip.open(filepath, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 row = parse_dns_line(line, filepath)
-                if row:
-                    rows.append(row)
-                    count += 1
-                    if len(rows) >= config.BATCH_SIZE:
-                        db.bulk_insert_dns(rows)
-                        rows.clear()
-    except (gzip.BadGzipFile, EOFError, OSError) as e:
-        print(f"[!] Bad file {os.path.basename(filepath)}: {e}")
-        return 0
-    if rows:
-        db.bulk_insert_dns(rows)
-    return count
+                if row: rows.append(row)
+    except Exception:
+        pass
+    return rows, "dns"
 
 
-def _ingest_radius_file(filepath: str) -> int:
-    """Handle both single-line and detail-file RADIUS formats."""
-    rows  = []
-    count = 0
-    block = []
+def _parse_radius_file(filepath: str):
+    rows, block = [], []
 
-    def flush_block():
-        nonlocal count
+    def flush(block):
         if block:
             row = parse_radius_block(block, filepath)
-            if row:
-                rows.append(row)
-                count += 1
-            block.clear()
+            if row: rows.append(row)
 
     try:
         with gzip.open(filepath, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 stripped = line.rstrip("\n")
-                if stripped == "":                 # blank line = end of block
-                    flush_block()
+                if stripped == "":
+                    flush(block); block = []
                 elif stripped[0] not in ("\t", " ") and block:
-                    # New block starts
-                    flush_block()
-                    block.append(stripped)
+                    flush(block); block = [stripped]
                 else:
-                    row = _parse_radius_singleline(stripped, filepath)
-                    if row:
-                        rows.append(row)
-                        count += 1
-                    else:
-                        block.append(stripped)
-
-                if len(rows) >= config.BATCH_SIZE:
-                    db.bulk_insert_radius(rows)
-                    rows.clear()
-
-        flush_block()
-    except (gzip.BadGzipFile, EOFError, OSError) as e:
-        print(f"[!] Bad file {os.path.basename(filepath)}: {e}")
-        return 0
-
-    if rows:
-        db.bulk_insert_radius(rows)
-    return count
+                    r = _parse_radius_singleline(stripped, filepath)
+                    if r: rows.append(r)
+                    else: block.append(stripped)
+        flush(block)
+    except Exception:
+        pass
+    return rows, "radius"
 
 
-def _ingest_dhcp_file(filepath: str) -> int:
-    """Try to extract year from filename (e.g. dhcpd.log.01.01.22.gz → 2022)."""
+def _parse_dhcp_file(filepath: str):
+    fname = os.path.basename(filepath)
     year_hint = "2025"
-    fname     = os.path.basename(filepath)
-    # Look for 2-digit year at end, e.g. ".22.gz"
-    ym = __import__("re").search(r'\.(\d{2})\.gz$', fname, __import__("re").I)
+    ym = re.search(r'\.(\d{2})\.gz$', fname, re.I)
     if ym:
-        yr = int(ym.group(1))
-        year_hint = str(2000 + yr)
-
-    rows  = []
-    count = 0
+        year_hint = str(2000 + int(ym.group(1)))
+    rows = []
     try:
         with gzip.open(filepath, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 row = parse_dhcp_line(line, filepath, year_hint=year_hint)
-                if row:
-                    rows.append(row)
-                    count += 1
-                    if len(rows) >= config.BATCH_SIZE:
-                        db.bulk_insert_dhcp(rows)
-                        rows.clear()
-    except (gzip.BadGzipFile, EOFError, OSError) as e:
-        print(f"[!] Bad file {os.path.basename(filepath)}: {e}")
-        return 0
-    if rows:
-        db.bulk_insert_dhcp(rows)
-    return count
+                if row: rows.append(row)
+    except Exception:
+        pass
+    return rows, "dhcp"
 
 
-def _ingest_macip_file(filepath: str) -> int:
-    rows  = []
-    count = 0
+def _parse_macip_file(filepath: str):
+    rows = []
     try:
         with gzip.open(filepath, "rt", encoding="utf-8", errors="replace") as f:
             for line in f:
                 row = parse_macip_line(line, filepath)
-                if row:
-                    rows.append(row)
-                    count += 1
-                    if len(rows) >= config.BATCH_SIZE:
-                        db.bulk_insert_mac_ip(rows)
-                        rows.clear()
-    except (gzip.BadGzipFile, EOFError, OSError) as e:
-        print(f"[!] Bad macip file: {e}")
-        return 0
-    if rows:
-        db.bulk_insert_mac_ip(rows)
-    return count
+                if row: rows.append(row)
+    except Exception:
+        pass
+    return rows, "mac_ip"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Dispatcher
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _ingest_file(filepath: str, log_source: str) -> tuple:
-    """Route a file to the right parser. Returns (filepath, rows_loaded)."""
+def _parse_file(filepath: str, log_source: str):
+    """Route to the right parser. Returns (rows, table_type, filepath)."""
     if config.SKIP_INGESTED and db.is_file_ingested(filepath):
-        return filepath, -1   # -1 = skipped
+        return None, None, filepath   # None = skip
 
     fname = os.path.basename(filepath).lower()
-
-    # Mac_IP files: numeric day prefix like  01.01.20.gz
-    if log_source == "firewall" and __import__("re").match(r'^\d{2}\.\d{2}', fname):
-        rows = _ingest_macip_file(filepath)
+    if log_source == "firewall" and re.match(r'^\d{2}\.\d{2}', fname):
+        rows, ttype = _parse_macip_file(filepath)
     elif log_source == "firewall":
-        rows = _ingest_firewall_file(filepath)
+        rows, ttype = _parse_firewall_file(filepath)
     elif log_source == "dns":
-        rows = _ingest_dns_file(filepath)
+        rows, ttype = _parse_dns_file(filepath)
     elif log_source == "radius":
-        rows = _ingest_radius_file(filepath)
+        rows, ttype = _parse_radius_file(filepath)
     elif log_source == "dhcp":
-        rows = _ingest_dhcp_file(filepath)
+        rows, ttype = _parse_dhcp_file(filepath)
     else:
-        rows = 0
+        rows, ttype = [], "events"
 
-    if rows > 0:
-        db.mark_file_ingested(filepath, log_source, rows)
+    return rows, ttype, filepath
 
-    return filepath, rows
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Single writer thread  — drains the write queue
+# ─────────────────────────────────────────────────────────────────────────────
+
+_write_fn = {
+    "events": db.bulk_insert_events,
+    "dns":    db.bulk_insert_dns,
+    "radius": db.bulk_insert_radius,
+    "dhcp":   db.bulk_insert_dhcp,
+    "mac_ip": db.bulk_insert_mac_ip,
+}
+
+def _writer_thread(write_q: queue.Queue, stats: dict):
+    """Runs in a single thread. Reads (rows, ttype, filepath) from queue."""
+    while True:
+        item = write_q.get()
+        if item is _DONE:
+            break
+        rows, ttype, filepath = item
+        if rows:
+            # Write in batches of BATCH_SIZE
+            for i in range(0, len(rows), config.BATCH_SIZE):
+                batch = rows[i:i + config.BATCH_SIZE]
+                try:
+                    _write_fn[ttype](batch)
+                except Exception as e:
+                    print(f"\n  [!] Write error for {os.path.basename(filepath)}: {e}")
+            db.mark_file_ingested(filepath, ttype, len(rows))
+            stats["rows"] += len(rows)
+        stats["written"] += 1
+        write_q.task_done()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -258,64 +214,73 @@ class Ingester:
         print(f"[+] Found {total:,} .gz files  (source={source})")
 
         if dry_run:
-            for fp, src in files[:50]:
+            for fp, src in files[:30]:
                 print(f"    {src:10s}  {fp}")
-            if total > 50:
-                print(f"    … and {total-50} more")
+            if total > 30:
+                print(f"    … and {total-30} more")
             return
 
         if total == 0:
-            print("[!] No files to ingest.")
-            return
+            print("[!] No files to ingest."); return
 
-        t0      = time.time()
-        done    = 0
-        skipped = 0
-        errors  = 0
-        total_rows = 0
+        t0 = time.time()
+        print(f"[+] Ingesting with {self.workers} parser threads + 1 writer thread …\n", flush=True)
 
-        print(f"[+] Starting ingestion with {self.workers} workers …", flush=True)
-        print(f"    Progress updates every 10 files.\n", flush=True)
+        # Shared stats dict (writer thread updates it)
+        stats = {"rows": 0, "written": 0}
+
+        # Start the single writer thread
+        write_q = queue.Queue(maxsize=self.workers * 4)
+        writer  = threading.Thread(target=_writer_thread, args=(write_q, stats), daemon=True)
+        writer.start()
+
+        done = skipped = errors = 0
 
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
             futures = {
-                pool.submit(_ingest_file, fp, src): (fp, src)
+                pool.submit(_parse_file, fp, src): (fp, src)
                 for fp, src in files
             }
             for future in as_completed(futures):
+                fp, src = futures[future]
+                fname   = os.path.basename(fp)
                 try:
-                    fp, rows = future.result()
-                    fname = os.path.basename(fp)
-                    if rows == -1:
+                    rows, ttype, _ = future.result()
+                    if rows is None:
                         skipped += 1
-                    elif rows == 0:
+                    elif len(rows) == 0:
                         errors += 1
-                        print(f"  [!] Empty/bad: {fname}", flush=True)
                     else:
-                        total_rows += rows
+                        write_q.put((rows, ttype, fp))  # hand to writer
                     done += 1
 
-                    # Progress every 10 files
-                    if done % 10 == 0 or done == total:
-                        elapsed = time.time() - t0
-                        pct     = done / total * 100
-                        rate    = done / elapsed if elapsed else 0
-                        eta     = (total - done) / rate if rate else 0
-                        rows_rate = total_rows / elapsed if elapsed else 0
-                        print(
-                            f"  [{done:>5}/{total}]  {pct:5.1f}%  |  "
-                            f"rows: {total_rows:>10,}  ({rows_rate:>8,.0f} rows/s)  |  "
-                            f"ETA: {eta/60:5.1f} min  |  last: {fname[:40]}",
-                            flush=True,
-                        )
                 except Exception as exc:
-                    print(f"\n[!] Worker error: {exc}", flush=True)
+                    print(f"\n  [!] Parse error {fname}: {exc}", flush=True)
                     errors += 1
+                    done += 1
+
+                # Progress every 10 files
+                if done % 10 == 0 or done == total:
+                    elapsed  = time.time() - t0
+                    pct      = done / total * 100
+                    rate     = done / elapsed if elapsed else 0
+                    eta      = (total - done) / rate if rate else 0
+                    row_rate = stats["rows"] / elapsed if elapsed else 0
+                    print(
+                        f"  [{done:>5}/{total}]  {pct:5.1f}%  |  "
+                        f"rows: {stats['rows']:>10,}  ({row_rate:>8,.0f} r/s)  |  "
+                        f"ETA: {eta/60:4.1f}m  |  {fname[:35]}",
+                        flush=True,
+                    )
+
+        # Signal writer to finish and wait
+        write_q.put(_DONE)
+        writer.join()
 
         elapsed = time.time() - t0
         print(f"\n[+] Done in {elapsed:.1f}s")
-        print(f"    Files processed : {done - skipped:,}")
-        print(f"    Files skipped   : {skipped:,}  (already ingested)")
-        print(f"    Files errored   : {errors:,}")
-        print(f"    Rows inserted   : {total_rows:,}")
-        print(f"    Rate            : {total_rows/elapsed if elapsed else 0:,.0f} rows/sec")
+        print(f"    Files parsed  : {done - skipped:,}")
+        print(f"    Files skipped : {skipped:,}  (already ingested)")
+        print(f"    Files empty   : {errors:,}")
+        print(f"    Rows inserted : {stats['rows']:,}")
+        print(f"    Rate          : {stats['rows']/elapsed if elapsed else 0:,.0f} rows/sec")

@@ -1,98 +1,82 @@
 #!/usr/bin/env python3
 """
-siem.py  –  SIEM CLI entry point
+siem.py — SentinelEye SIEM CLI
+Indian Institute of Science | ISO Security Team
 
 Commands:
-  init        Create/upgrade the SQLite database
-  ingest      Parse .gz log files from the NFS mount into the DB
+  init        Create / upgrade the SQLite database
+  ingest      Parse .gz log files from NFS mount into DB
   analyze     Run SOC detection rules and generate alerts
   dashboard   Start the web dashboard  (http://localhost:5000)
-  query       Query events from the CLI
+  query       Query events from CLI
   alerts      View / acknowledge alerts
-  report      Print summary report to stdout
+  report      Print summary stats
 
 Examples:
   python siem.py init
-  python siem.py ingest --source all --workers 8
-  python siem.py ingest --source firewall --since 2025-01-01
+  python siem.py ingest --source firewall --workers 4
+  python siem.py ingest --source dns      --workers 4
+  python siem.py ingest --source radius   --workers 4
+  python siem.py ingest --source dhcp     --workers 4
   python siem.py analyze
-  python siem.py analyze --rules R001 R005 R013
-  python siem.py dashboard --port 5000
-  python siem.py query --src-ip 10.217.51.86 --limit 50
+  python siem.py dashboard
+  python siem.py query --src-ip 10.217.51.86
   python siem.py alerts --severity Critical --unacked
-  python siem.py alerts --ack 12
   python siem.py report
 """
-
-import argparse
-import sys
-import os
+import argparse, sys, os
 
 
 def main():
     parser = argparse.ArgumentParser(
         prog="siem",
-        description="SIEM — Log Analysis & SOC Operations",
+        description="SentinelEye SIEM — IISc ISO Security Team",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     sub = parser.add_subparsers(dest="cmd")
 
-    # init
     sub.add_parser("init", help="Initialise the SQLite database")
 
-    # ingest
     p = sub.add_parser("ingest", help="Ingest .gz log files")
     p.add_argument("--source", default="all",
                    choices=["all","firewall","dns","radius","dhcp"],
-                   help="Which log source to ingest (default: all)")
-    p.add_argument("--workers", type=int, default=8,
-                   help="Parallel worker threads (default: 8)")
-    p.add_argument("--since", metavar="YYYY-MM-DD",
+                   help="Log source (default: all — runs one source at a time)")
+    p.add_argument("--workers", type=int, default=4,
+                   help="Parser threads (default: 4; keep ≤4 for stability)")
+    p.add_argument("--since",   metavar="YYYY-MM-DD",
                    help="Only process files modified after this date")
     p.add_argument("--dry-run", action="store_true",
-                   help="List files that would be ingested without loading them")
+                   help="List files without loading")
 
-    # analyze
     p = sub.add_parser("analyze", help="Run detection rules")
     p.add_argument("--rules", nargs="+", metavar="R001",
                    help="Run only these rule IDs (default: all)")
-    p.add_argument("--since", metavar="YYYY-MM-DD",
-                   help="(Informational – filter hint for future use)")
 
-    # dashboard
     p = sub.add_parser("dashboard", help="Start web dashboard")
-    p.add_argument("--host", default="0.0.0.0")
-    p.add_argument("--port", type=int, default=5000)
+    p.add_argument("--host",  default="0.0.0.0")
+    p.add_argument("--port",  type=int, default=5000)
     p.add_argument("--debug", action="store_true")
 
-    # query
-    p = sub.add_parser("query", help="Query events from the DB")
-    p.add_argument("--src-ip")
-    p.add_argument("--dst-ip")
-    p.add_argument("--type", dest="log_type")
+    p = sub.add_parser("query", help="Query events")
+    p.add_argument("--src-ip");  p.add_argument("--dst-ip")
+    p.add_argument("--type",   dest="log_type")
     p.add_argument("--source", dest="log_source")
-    p.add_argument("--action")
-    p.add_argument("--since", metavar="YYYY-MM-DD")
-    p.add_argument("--limit", type=int, default=100)
+    p.add_argument("--action"); p.add_argument("--since")
+    p.add_argument("--limit",  type=int, default=100)
     p.add_argument("--format", choices=["table","json","csv"], default="table")
 
-    # alerts
     p = sub.add_parser("alerts", help="View / manage alerts")
     p.add_argument("--severity", choices=["Critical","High","Medium","Low"])
-    p.add_argument("--unacked", action="store_true", help="Show only unacknowledged")
-    p.add_argument("--ack", type=int, metavar="ID", help="Acknowledge alert by ID")
-    p.add_argument("--ack-by", default="analyst")
+    p.add_argument("--unacked",  action="store_true")
+    p.add_argument("--ack",      type=int, metavar="ID")
+    p.add_argument("--ack-by",   default="analyst")
 
-    # report
-    sub.add_parser("report", help="Print summary stats report")
+    sub.add_parser("report", help="Print summary stats")
 
-    # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
-
     if not args.cmd:
-        parser.print_help()
-        sys.exit(0)
+        parser.print_help(); sys.exit(0)
 
     if args.cmd == "init":
         from db.schema import init_db
@@ -100,16 +84,27 @@ def main():
 
     elif args.cmd == "ingest":
         from db.schema import init_db
-        init_db()          # ensure schema exists
+        init_db()
         from ingest.ingester import Ingester
-        ing = Ingester(workers=args.workers)
-        ing.run(source=args.source, since=args.since, dry_run=args.dry_run)
+        if args.source == "all":
+            # Run one source at a time to avoid any write contention
+            print("[+] Running full ingest — one source at a time for stability\n")
+            for src in ["firewall", "dns", "radius", "dhcp"]:
+                print(f"\n{'='*50}")
+                print(f"  Source: {src}")
+                print(f"{'='*50}")
+                Ingester(workers=args.workers).run(
+                    source=src, since=args.since, dry_run=args.dry_run
+                )
+        else:
+            Ingester(workers=args.workers).run(
+                source=args.source, since=args.since, dry_run=args.dry_run
+            )
 
     elif args.cmd == "analyze":
         from rules.engine import RuleEngine
         print("[+] Running detection rules …")
-        engine = RuleEngine()
-        engine.run(rule_ids=args.rules)
+        RuleEngine().run(rule_ids=args.rules)
 
     elif args.cmd == "dashboard":
         from dashboard.app import create_app
@@ -140,61 +135,54 @@ def main():
         _print_report()
 
 
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
 def _print_rows(rows, fmt="table", cols=None):
+    import json, csv
     if not rows:
-        print("(no results)")
-        return
+        print("(no results)"); return
     if fmt == "json":
-        import json
         print(json.dumps(rows, default=str, indent=2))
     elif fmt == "csv":
-        import csv
         keys = cols or list(rows[0].keys())
         w = csv.DictWriter(sys.stdout, fieldnames=keys, extrasaction="ignore")
-        w.writeheader()
-        w.writerows(rows)
+        w.writeheader(); w.writerows(rows)
     else:
-        # simple table
-        keys = cols or list(rows[0].keys())
-        widths = {k: max(len(str(k)), max(len(str(r.get(k,"") or "")) for r in rows))
-                  for k in keys}
-        widths = {k: min(v, 60) for k, v in widths.items()}
-        header = "  ".join(str(k).ljust(widths[k]) for k in keys)
-        sep    = "  ".join("-" * widths[k] for k in keys)
-        print(header)
-        print(sep)
+        keys   = cols or list(rows[0].keys())
+        widths = {k: min(max(len(str(k)), max(len(str(r.get(k,"")or"")) for r in rows)), 55) for k in keys}
+        hdr = "  ".join(str(k).ljust(widths[k]) for k in keys)
+        sep = "  ".join("-"*widths[k] for k in keys)
+        print(hdr); print(sep)
         for r in rows:
-            print("  ".join(str(r.get(k,"") or "")[:widths[k]].ljust(widths[k]) for k in keys))
+            print("  ".join(str(r.get(k,"")or"")[:widths[k]].ljust(widths[k]) for k in keys))
         print(f"\n({len(rows)} rows)")
 
 
 def _print_report():
     from db.schema import get_stats, get_alerts
     s = get_stats()
-    print("\n╔══════════════════════════════════════╗")
-    print("║         SIEM  –  Summary Report       ║")
-    print("╚══════════════════════════════════════╝")
-    print(f"  Total events ingested : {s['total_events']:>12,}")
-    print(f"  DNS queries           : {s['total_dns']:>12,}")
-    print(f"  RADIUS auth records   : {s['total_radius']:>12,}")
-    print(f"  DHCP events           : {s['total_dhcp']:>12,}")
-    print(f"  Files ingested        : {s['files_ingested']:>12,}")
+    print("\n╔══════════════════════════════════════════════╗")
+    print("║     SentinelEye SIEM  —  Summary Report      ║")
+    print("║     Indian Institute of Science, Bangalore   ║")
+    print("╚══════════════════════════════════════════════╝")
+    print(f"  Total events ingested  : {s['total_events']:>12,}")
+    print(f"  DNS queries            : {s['total_dns']:>12,}")
+    print(f"  RADIUS auth records    : {s['total_radius']:>12,}")
+    print(f"  DHCP events            : {s['total_dhcp']:>12,}")
+    print(f"  Files ingested         : {s['files_ingested']:>12,}")
     print()
-    print(f"  Open alerts           : {s['open_alerts']:>12,}")
-    print(f"  Critical alerts       : {s['critical_alerts']:>12,}")
-    print(f"  Denied connections    : {s['denied_events']:>12,}")
-    print(f"  ATP/Threat events     : {s['atp_events']:>12,}")
-    print(f"  IPS events            : {s['ips_events']:>12,}")
-    print(f"  DoS attacks           : {s['dos_events']:>12,}")
-    print(f"  RADIUS rejects        : {s['radius_rejects']:>12,}")
+    print(f"  Open alerts            : {s['open_alerts']:>12,}")
+    print(f"  Critical alerts        : {s['critical_alerts']:>12,}")
+    print(f"  Denied connections     : {s['denied_events']:>12,}")
+    print(f"  Allowed connections    : {s['allowed_events']:>12,}")
+    print(f"  ATP/Threat events      : {s['atp_events']:>12,}")
+    print(f"  IPS events             : {s['ips_events']:>12,}")
+    print(f"  DoS attacks            : {s['dos_events']:>12,}")
+    print(f"  RADIUS rejects         : {s['radius_rejects']:>12,}")
     print()
     alerts = get_alerts(unacked_only=True, limit=10)
     if alerts:
         print("  Top open alerts:")
         for a in alerts[:10]:
-            print(f"    [{a['severity']:8s}] {a['rule_name']:30s}  {a['src_ip']:15s}  {a['description'][:60]}")
+            print(f"    [{a['severity']:8s}] {a['rule_name']:35s}  {a['src_ip']:15s}  {a['description'][:55]}")
     print()
 
 

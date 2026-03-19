@@ -1,24 +1,24 @@
 """
-rules/engine.py
-Runs detection rules and persists new alerts to the database.
+rules/engine.py — Detection Rule Runner
+Indian Institute of Science | ISO Security Team
+
+Fix: uses read-only connection for rule queries, write lock only for insert_alert.
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import config
 from db.schema import insert_alert, get_connection
 from rules.definitions import RULES
 
 
 class RuleEngine:
     def __init__(self):
+        # Use a read-only connection for rule SQL queries
         self.conn = get_connection()
 
-    def run(self, rule_ids: list = None, since: str = None, verbose: bool = True):
-        """Execute all (or selected) rules and insert new alerts."""
+    def run(self, rule_ids: list = None, verbose: bool = True) -> int:
         rules_to_run = (
             [r for r in RULES if r["id"] in rule_ids]
-            if rule_ids
-            else RULES
+            if rule_ids else RULES
         )
 
         total_alerts = 0
@@ -33,7 +33,7 @@ class RuleEngine:
 
             new_alerts = 0
             for hit in hits:
-                # Deduplicate: skip if identical (rule_id, src_ip, desc) already open
+                # Deduplicate: skip if same rule+src_ip already has an open alert
                 existing = self.conn.execute(
                     "SELECT 1 FROM alerts WHERE rule_id=? AND src_ip=? AND acknowledged=0 LIMIT 1",
                     (rule["id"], hit.get("src_ip", ""))

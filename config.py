@@ -1,10 +1,11 @@
 """
-SIEM Configuration
-Edit these paths and settings to match your environment.
+config.py — SentinelEye SIEM Configuration
+Indian Institute of Science | ISO Security Team
+Edit paths and thresholds to match your environment.
 """
 import os
 
-# ── Mount base ──────────────────────────────────────────────────────────────
+# ── Mount base ───────────────────────────────────────────────────────────────
 MOUNT_BASE = "/mnt"
 
 # ── Log source paths ─────────────────────────────────────────────────────────
@@ -33,28 +34,29 @@ LOG_SOURCES = {
 }
 
 # ── Database ─────────────────────────────────────────────────────────────────
-DB_PATH = os.path.expanduser("~/siem.db")
+DB_PATH = os.path.expanduser("~/siem.db")   # expanduser so ~ resolves correctly
 
 # ── Ingestion ────────────────────────────────────────────────────────────────
-MAX_WORKERS       = 8      # parallel gz decompressor threads
-BATCH_SIZE        = 2000   # rows per DB commit
-SKIP_INGESTED     = True   # skip files already recorded in db
+# IMPORTANT: Keep MAX_WORKERS at 4 or less to avoid SQLite write contention.
+# The ingester uses a single-writer queue so this controls decompression parallelism.
+MAX_WORKERS   = 4      # parallel gz decompressor threads
+BATCH_SIZE    = 1000   # rows per DB commit (smaller = less memory, more commits)
+SKIP_INGESTED = True   # skip files already recorded in ingested_files table
 
-# ── Dashboard ────────────────────────────────────────────────────────────────
-DASHBOARD_HOST    = "0.0.0.0"
-DASHBOARD_PORT    = 5000
-SECRET_KEY        = "change-me-in-production"
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+DASHBOARD_HOST = "0.0.0.0"
+DASHBOARD_PORT = 5000
+SECRET_KEY     = "sentineleye-iisc-iso-2025"
 
-# ── Alerting ─────────────────────────────────────────────────────────────────
-# Set ALERT_EMAIL to enable email alerts (requires smtplib config in alerts/alerter.py)
-ALERT_EMAIL       = None        # e.g. "soc@yourorg.com"
-SMTP_HOST         = "localhost"
-SMTP_PORT         = 25
+# ── Alerting ──────────────────────────────────────────────────────────────────
+ALERT_EMAIL = None   # set to "soc@iisc.ac.in" to enable email alerts
+SMTP_HOST   = "localhost"
+SMTP_PORT   = 25
 
-# ── Thresholds (used by detection rules) ────────────────────────────────────
-BRUTE_FORCE_WINDOW_SEC    = 300   # 5-minute window
-BRUTE_FORCE_THRESHOLD     = 10    # failed logins before alert
-PORT_SCAN_WINDOW_SEC      = 60
-PORT_SCAN_THRESHOLD       = 20    # distinct dst ports from single src
-DNS_TUNNEL_QUERY_THRESHOLD= 5000  # IISc DNS servers generate high volume — tune per investigation   # DNS queries/min from single host
-LARGE_TRANSFER_BYTES      = 100_000_000  # 100 MB outbound
+# ── Detection thresholds ──────────────────────────────────────────────────────
+BRUTE_FORCE_WINDOW_SEC     = 300          # 5-minute window for brute-force detection
+BRUTE_FORCE_THRESHOLD      = 10           # RADIUS rejects before brute-force alert
+PORT_SCAN_WINDOW_SEC       = 60           # window for port scan detection
+PORT_SCAN_THRESHOLD        = 20           # distinct dst ports before port-scan alert
+DNS_TUNNEL_QUERY_THRESHOLD = 5000         # queries/min — IISc DNS resolvers are high volume
+LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB outbound = large transfer alert

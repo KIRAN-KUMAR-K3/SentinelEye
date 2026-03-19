@@ -82,10 +82,14 @@ Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall de
     ├── primary-radius/              ← FreeRADIUS auth              —  2,874 files
     ├── secondary-radius/            ← FreeRADIUS auth              —  1,277 files
     ├── primary-dhcp/                ← ISC dhcpd leases             —  2,703 files
-    └── secondary-dhcp/              ← ISC dhcpd leases             —  1,273 files
+    └── secondary-dhcp/             ← ISC dhcpd leases             —  1,273 files
                                                           ────────────────────────
                                                           Total:      45,437 files
 ```
+
+> **Storage reality:** The full dataset is ~4.5 TB compressed (3.7 TB firewall + 786 GB DNS + 65 GB RADIUS/DHCP).
+> Ingesting everything would require 10–22 TB of free disk and 3–10 days of runtime.
+> **Use the `--since` flag (recommended) to ingest only the last 30 days** — fast, practical, and sufficient for SOC work.
 
 ---
 
@@ -93,8 +97,13 @@ Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall de
 
 ### Prerequisites
 ```
-Python 3.10+   pip   NFS mount at /mnt   (edit config.py to change paths)
+Python 3.10+   pip   NFS mount at /mnt   sudo access (NFS paths need root)
+                                        _(edit config.py to change paths)_
+
 ```
+
+> **Why sudo?** The `/mnt` NFS mount paths are owned by root. Without sudo, the ingester finds 0 files.
+> Fix permanently by adding your user to the mount group or setting `uid=` in `/etc/fstab`.
 
 ### Clone and install
 ```bash
@@ -109,52 +118,63 @@ pip install flask tabulate
 
 ## 🚀 How to Run — Step by Step
 
-> ⚠️ **Critical rule:** Run **one ingestion command at a time**. Wait for `[+] Done` before running the next. Never press Ctrl+C during ingestion.
+> ⚠️ **Critical rules:**
+> - Run **one ingestion command at a time**. Wait for `[+] Done` before running the next.
+> - Never press Ctrl+C during ingestion — it can corrupt the DB.
+> - Use **`sudo`** so the ingester can read the NFS-mounted `/mnt` paths.
+> - Use **`--since`** to limit ingestion to recent logs — the full dataset is 4.5 TB.
+
+---
 
 ### Step 1 — Initialise the database
 ```bash
-python siem.py init
+sudo python siem.py init
 ```
 Expected output:
 ```
-[+] Database ready at /home/iso/siem.db
+[+] Database ready at /root/siem.db
 ```
 
 ---
 
-### Step 2 — Ingest log sources (one at a time)
+### Step 2 — Ingest log sources (recommended: last 30 days only)
 
-**Firewall** (largest — takes 1–3 hours depending on NFS speed):
+> 💡 **The `--since` flag is the most important option.** Without it the ingester will try to process all 45,437 files (4.5 TB). With it, only files modified after that date are processed — typically 200–600 files, completing in minutes not days.
+
+**Firewall** — start here, largest source:
 ```bash
-python siem.py ingest --source firewall --workers 4
+sudo python siem.py ingest --source firewall --since 2025-02-17 --workers 4
 ```
 
-Wait for `[+] Done`, then **DNS** (~45–90 min):
+Wait for `[+] Done`, then **RADIUS**:
 ```bash
-python siem.py ingest --source dns --workers 4
-```
-
-Wait, then **RADIUS**:
-```bash
-python siem.py ingest --source radius --workers 4
+sudo python siem.py ingest --source radius --since 2025-02-17 --workers 4
 ```
 
 Wait, then **DHCP**:
 ```bash
-python siem.py ingest --source dhcp --workers 4
+sudo python siem.py ingest --source dhcp --since 2025-02-17 --workers 4
 ```
 
-> 💡 Use `--workers 4` (not 8 or 16). More workers only helps decompression speed; the single writer thread is the real bottleneck. 4 workers is the sweet spot for stability.
+**DNS (optional — 6,600 files, slowest source):**
+```bash
+# Do this last. DNS adds query volume data but is not required for core SOC work.
+sudo python siem.py ingest --source dns --since 2025-02-17 --workers 4
+```
+
+> 📅 **Update the `--since` date** to yesterday or the start of your investigation window.
+> Example for today's logs only: `--since 2025-03-18`
+> Example for last 7 days: `--since 2025-03-12`
 
 ---
 
 ### Step 3 — Watch live progress (open a second terminal)
 
-While ingestion runs, open a second terminal and run:
+While ingestion runs, open a second terminal:
 ```bash
 cd SentinelEye
 source venu/bin/activate
-python monitor.py
+sudo python monitor.py
 ```
 
 You will see:
@@ -163,18 +183,20 @@ You will see:
 ║      SentinelEye — Live Ingestion Monitor            ║
 ║      Indian Institute of Science | ISO Security      ║
 ╠══════════════════════════════════════════════════════╣
-║  Files ingested :   4,200 / 45,437           9.2%   ║
-║  Progress       : [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  ║
+║  Files ingested :     420 / 45,437           0.9%   ║
+║  Progress       : [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  ║
 ╠══════════════════════════════════════════════════════╣
-║  Firewall events:    4,812,330                       ║
+║  Firewall events:      812,330                       ║
 ║  DNS queries    :            0                       ║
-║  RADIUS auth    :            0                       ║
-║  DHCP leases    :            0                       ║
+║  RADIUS auth    :       14,210                       ║
+║  DHCP leases    :        8,880                       ║
 ╠══════════════════════════════════════════════════════╣
-║  Total rows     :    4,812,330                       ║
+║  Total rows     :      835,420                       ║
 ║  Ingest rate    :    85,000 rows/sec                 ║
 ╚══════════════════════════════════════════════════════╝
 ```
+
+> The progress percentage shows out of total 45,437 files. When using `--since`, only a small fraction of files are actually processed — the counter will reach 100% quickly.
 
 ---
 
@@ -182,7 +204,7 @@ You will see:
 
 After all sources finish ingesting:
 ```bash
-python siem.py analyze
+sudo python siem.py analyze
 ```
 
 Expected output:
@@ -191,14 +213,8 @@ Expected output:
   [R001] C2 Communication          ...  12 hits →  12 new alerts
   [R002] DoS Attack                ...   8 hits →   8 new alerts
   [R003] IPS Signature Triggered   ...  45 hits →  45 new alerts
-  [R004] IP Spoofing Attempt       ...   6 hits →   6 new alerts
-  [R005] RADIUS Brute Force        ...   0 hits →   0 new alerts
-  [R006] Admin Login from External ...   2 hits →   2 new alerts
-  [R007] DNS Tunneling             ... 193 hits → 193 new alerts
-  [R008] Large Outbound Transfer   ...   5 hits →   5 new alerts
+  [R005] RADIUS Brute Force        ...   3 hits →   3 new alerts
   [R009] Port Scan Detected        ...  18 hits →  18 new alerts
-  [R014] Repeated Denies (Scanner) ...  24 hits →  24 new alerts
-  [R015] Suspicious DNS (DGA?)     ...  32 hits →  32 new alerts
   ...
 [+] Total new alerts generated: 345
 ```
@@ -208,34 +224,33 @@ Expected output:
 ### Step 5 — Start the dashboard
 
 ```bash
-python siem.py dashboard
+sudo python siem.py dashboard
 ```
 
-Then open your browser and go to: **`http://localhost:5000`**
+Then open your browser: **`http://localhost:5000`**
 
 ---
 
 ### Step 6 — Verify everything is working
 
 ```bash
-python siem.py report
+sudo python siem.py report
 ```
 
-Expected output:
+---
+
+### Step 7 — Incremental daily update
+
+Run this each morning to pull in yesterday's new logs:
+```bash
+# Change the date to yesterday each time
+sudo python siem.py ingest --source firewall --since 2025-03-18 --workers 4
+sudo python siem.py ingest --source radius   --since 2025-03-18 --workers 4
+sudo python siem.py ingest --source dhcp     --since 2025-03-18 --workers 4
+sudo python siem.py analyze
 ```
-╔══════════════════════════════════════════════════╗
-║     SentinelEye SIEM  —  Summary Report          ║
-║     Indian Institute of Science, Bangalore       ║
-╚══════════════════════════════════════════════════╝
-  Total events ingested  :   27,000,000+
-  DNS queries            :   40,000,000+
-  RADIUS auth records    :      500,000+
-  DHCP events            :      300,000+
-  Files ingested         :       45,437
-  Open alerts            :          345
-  Critical alerts        :           14
-  Denied connections     :   27,000,000+
-```
+
+Already-ingested files are automatically skipped (`SKIP_INGESTED = True` in `config.py`), so re-running is always safe.
 
 ---
 
@@ -265,25 +280,24 @@ Expected output:
 
 ## 🖥️ Dashboard Views
 
-All 8 views share a **global date range filter** in the top bar. The sidebar shows IISc / ISO branding. The alert badge auto-refreshes every 60 seconds.
+All 8 views share a **global date range filter** in the top bar.
 
 | # | View | Sidebar | What You Get |
 |---|------|---------|-------------|
 | 1 | **Overview** | 🏠 | 12 stat cards · stacked hourly event timeline · log type breakdown · DNS volume chart · top queried domains · recent open alerts |
 | 2 | **Alerts** | 🚨 | Full alert table · filter by severity/rule/IP/date/status · checkbox bulk-ACK · rule summary table · CSV/JSON export |
-| 3 | **Firewall** | 🔥 | Top denied/allowed source IPs · top destination IPs · top rules hit · protocols donut · port table with service names · top applications · bandwidth chart per host |
-| 4 | **DNS Analysis** | 🌐 | 40M+ query breakdown · top domains with client count · query type chart · suspicious TLD/DGA highlighted table |
-| 5 | **Users** | 👤 | Admin GUI/CLI login history · RADIUS user summary · brute-force failed login list · VPN/SSL sessions · username investigation search box |
-| 6 | **Threats** | 🛡️ | ATP/C2 events with threat names · IPS signatures · DoS attacks · top compromised/infected hosts |
-| 7 | **Network** | 🔗 | DHCP lease history · VPN/IPSec session table · MAC↔IP lookup by IP or MAC address |
-| 8 | **Event Hunt** | 🔍 | 10-field advanced search · src/dst IP · port · log type/source · action · username/email · protocol · keyword · date range · CSV/JSON export |
+| 3 | **Firewall** | 🔥 | Top denied/allowed source IPs · top destination IPs · top rules hit · protocols donut · port table · top applications · bandwidth chart |
+| 4 | **DNS Analysis** | 🌐 | Query breakdown · top domains · query type chart · suspicious TLD/DGA table |
+| 5 | **Users** | 👤 | Admin GUI/CLI login history · RADIUS user summary · brute-force failed login list · VPN sessions · username search |
+| 6 | **Threats** | 🛡️ | ATP/C2 events · IPS signatures · DoS attacks · top infected hosts |
+| 7 | **Network** | 🔗 | DHCP lease history · VPN/IPSec sessions · MAC↔IP lookup |
+| 8 | **Event Hunt** | 🔍 | 10-field advanced search · src/dst IP · port · log type · action · username · protocol · keyword · date range · CSV/JSON export |
 
 ### 🔍 IP Pivot — Click any IP anywhere
-Opens a 6-tab investigation modal instantly:
+Opens a 6-tab investigation modal:
 ```
 [ Firewall Events ] [ DNS Queries ] [ RADIUS Auth ] [ DHCP Leases ] [ Alerts ] [ Threats ]
 ```
-Shows complete cross-source history for that IP in one place.
 
 ---
 
@@ -337,7 +351,7 @@ def r016_suspicious_useragent(conn):
 {"id": "R016", "name": "Suspicious User-Agent", "severity": "Medium", "fn": r016_suspicious_useragent},
 ```
 
-Then run `python siem.py analyze` to execute your new rule.
+Then run `sudo python siem.py analyze` to execute your new rule.
 
 ---
 
@@ -415,46 +429,49 @@ SentinelEye/
 
 ```bash
 # ── Database ─────────────────────────────────────────────────────────────────
-python siem.py init
+sudo python siem.py init
 
-# ── Ingestion (always one source at a time) ───────────────────────────────────
-python siem.py ingest --source firewall --workers 4
-python siem.py ingest --source dns      --workers 4
-python siem.py ingest --source radius   --workers 4
-python siem.py ingest --source dhcp     --workers 4
+# ── Ingestion — RECOMMENDED: use --since to limit to recent logs ──────────────
+sudo python siem.py ingest --source firewall --since 2025-02-17 --workers 4
+sudo python siem.py ingest --source radius   --since 2025-02-17 --workers 4
+sudo python siem.py ingest --source dhcp     --since 2025-02-17 --workers 4
+sudo python siem.py ingest --source dns      --since 2025-02-17 --workers 4  # slowest, do last
 
-python siem.py ingest --source firewall --since 2025-04-01   # incremental update
-python siem.py ingest --source firewall --dry-run            # preview files only
+# Without --since ingests ALL files (4.5 TB, takes days — not recommended)
+sudo python siem.py ingest --source firewall --workers 4
+
+# Preview files without ingesting
+sudo python siem.py ingest --source firewall --since 2025-02-17 --dry-run
 
 # ── Live monitor (separate terminal, runs alongside ingestion) ────────────────
-python monitor.py
+sudo python monitor.py
 
 # ── Detection rules ───────────────────────────────────────────────────────────
-python siem.py analyze                          # run all 15 rules
-python siem.py analyze --rules R001 R006 R013   # run specific rules only
+sudo python siem.py analyze                          # run all 15 rules
+sudo python siem.py analyze --rules R001 R006 R013   # run specific rules only
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
-python siem.py dashboard                        # http://localhost:5000
-python siem.py dashboard --port 8080            # custom port
-python siem.py dashboard --debug                # Flask debug mode
+sudo python siem.py dashboard                        # http://localhost:5000
+sudo python siem.py dashboard --port 8080            # custom port
+sudo python siem.py dashboard --debug                # Flask debug mode
 
 # ── Query events (CLI) ────────────────────────────────────────────────────────
-python siem.py query --src-ip 10.217.51.86
-python siem.py query --action Deny --since 2025-03-01 --limit 500
-python siem.py query --type ATP --format json
-python siem.py query --type IPS --format csv > ips_events.csv
+sudo python siem.py query --src-ip 10.217.51.86
+sudo python siem.py query --action Deny --since 2025-03-01 --limit 500
+sudo python siem.py query --type ATP --format json
+sudo python siem.py query --type IPS --format csv > ips_events.csv
 
 # ── Manage alerts (CLI) ───────────────────────────────────────────────────────
-python siem.py alerts                             # all open alerts
-python siem.py alerts --severity Critical         # critical only
-python siem.py alerts --unacked                   # unacknowledged only
-python siem.py alerts --ack 42 --ack-by kiran     # acknowledge alert #42
+sudo python siem.py alerts                             # all open alerts
+sudo python siem.py alerts --severity Critical         # critical only
+sudo python siem.py alerts --unacked                   # unacknowledged only
+sudo python siem.py alerts --ack 42 --ack-by kiran     # acknowledge alert #42
 
 # ── Summary report ────────────────────────────────────────────────────────────
-python siem.py report
+sudo python siem.py report
 
 # ── Quick DB health check ─────────────────────────────────────────────────────
-python3 -c "
+sudo python3 -c "
 import sqlite3, os
 conn = sqlite3.connect(os.path.expanduser('~/siem.db'))
 for t in ['events','dns_queries','radius_auth','dhcp_leases','ingested_files','alerts']:
@@ -472,24 +489,23 @@ conn.close()
 # NFS mount point where .gz files are stored
 MOUNT_BASE = "/mnt"
 
-# SQLite database path (~/ expands to home directory)
+# SQLite database path (when running with sudo, this resolves to /root/siem.db)
 DB_PATH = os.path.expanduser("~/siem.db")
 
 # Ingestion settings
-# Keep workers at 4 — more workers don't help (single writer bottleneck)
-MAX_WORKERS   = 4      # parallel decompression threads
+MAX_WORKERS   = 4      # parallel decompression threads — keep at 4
 BATCH_SIZE    = 1000   # rows per DB commit
-SKIP_INGESTED = True   # skip files already in ingested_files table
+SKIP_INGESTED = True   # skip files already in ingested_files table (safe to re-run)
 
 # Dashboard
 DASHBOARD_HOST = "0.0.0.0"
 DASHBOARD_PORT = 5000
 
-# Detection rule thresholds — tune to your network
+# Detection rule thresholds
 BRUTE_FORCE_WINDOW_SEC     = 300          # 5 min window for R005
 BRUTE_FORCE_THRESHOLD      = 10           # RADIUS rejects before alert
 PORT_SCAN_THRESHOLD        = 20           # distinct dst_port count for R009
-DNS_TUNNEL_QUERY_THRESHOLD = 5000         # queries/min for R007 (IISc DNS is high-volume)
+DNS_TUNNEL_QUERY_THRESHOLD = 5000         # queries/min for R007
 LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 ```
 
@@ -497,14 +513,14 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 
 ## 🗄️ Database Schema
 
-| Table | Verified Rows | Key Columns |
-|-------|---------------|-------------|
-| `events` | 27,362,000+ ✅ | `ts · log_type · log_component · src_ip · dst_ip · action · threat_name · username` |
-| `dns_queries` | 40,018,000+ ✅ | `ts · client_ip · query_name · query_type · server_ip` |
+| Table | Rows (full ingest) | Key Columns |
+|-------|-------------------|-------------|
+| `events` | 27,362,000+ | `ts · log_type · log_component · src_ip · dst_ip · action · threat_name · username` |
+| `dns_queries` | 40,018,000+ | `ts · client_ip · query_name · query_type · server_ip` |
 | `radius_auth` | ~500,000+ | `ts · username · nas_ip · client_ip · result` |
 | `dhcp_leases` | ~300,000+ | `ts · event_type · ip_address · mac_address · hostname` |
 | `mac_ip_map` | ~2,000,000+ | `ts · mac_address · ip_address · interface` |
-| `alerts` | 345+ ✅ | `rule_id · severity · src_ip · description · acknowledged · ack_by` |
+| `alerts` | 345+ | `rule_id · severity · src_ip · description · acknowledged · ack_by` |
 | `ingested_files` | 45,437 | `filepath · log_source · rows_loaded · loaded_at` |
 
 ---
@@ -513,15 +529,14 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 
 | Metric | Value |
 |--------|-------|
-| Log files processed | **45,437** `.gz` archives |
-| Firewall events (verified live) | **27,362,000+** ✅ |
-| DNS queries (verified live) | **40,018,000+** ✅ |
-| Alerts generated (first run) | **345+** ✅ |
+| Total log files | **45,437** `.gz` archives |
+| Total compressed size | **~4.5 TB** (3.7 TB FW + 786 GB DNS + 65 GB RADIUS/DHCP) |
+| Firewall events (full ingest) | **27,362,000+** |
+| DNS queries (full ingest) | **40,018,000+** |
 | Ingestion speed | 50,000 – 100,000 rows/sec over NFS |
-| Worker threads | 4 (stable) — 8–12 (faster NFS) |
+| Recommended ingest window | **Last 30 days** via `--since` flag |
 | DB engine | SQLite WAL · tested beyond 70M rows |
 | Dashboard API response | < 500ms — all queries index-backed |
-| REST API endpoints | 30+ secure endpoints |
 
 ---
 
@@ -540,13 +555,13 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `database is locked` | Multiple processes writing simultaneously | `pkill -9 -f python` → `rm ~/siem.db-wal ~/siem.db-shm` → restart |
-| `database disk image is malformed` | Ctrl+C during write corrupted the DB | `rm ~/siem.db ~/siem.db-wal ~/siem.db-shm` → `python siem.py init` → re-ingest |
-| `DNS/RADIUS/DHCP = 0` | DB was locked when those sources ran | Re-run: `python siem.py ingest --source dns --workers 4` |
-| `Files ingested = 0` | `mark_file_ingested` failed silently | Fixed in FINAL version — upgrade `db/schema.py` |
-| `acknowledged_alert` column error | Phantom column in old R001 rule | Fixed in FINAL version — upgrade `rules/definitions.py` |
-| Dashboard shows 0 firewall events | Still ingesting DNS (loads first alphabetically) | Wait for firewall ingest to complete |
-| Ingestion very slow | NFS latency or too many workers | Reduce to `--workers 2`, check NFS mount speed |
+| `Found 0 .gz files` (without sudo) | `/mnt` NFS paths not readable by regular user | Run with `sudo` or fix NFS mount permissions |
+| `database is locked` | Multiple processes writing simultaneously | `sudo pkill -9 -f python` → `sudo rm ~/siem.db-wal ~/siem.db-shm` → restart |
+| `database disk image is malformed` | Ctrl+C during write corrupted the DB | `sudo rm ~/siem.db ~/siem.db-wal ~/siem.db-shm` → `sudo python siem.py init` → re-ingest |
+| `DNS/RADIUS/DHCP = 0` | DB was locked when those sources ran | Re-run: `sudo python siem.py ingest --source dns --workers 4` |
+| Ingestion very slow | Processing all 45,437 files without `--since` | Always use `--since YYYY-MM-DD` to limit scope |
+| Dashboard shows 0 events | Ingestion not yet complete | Wait for `[+] Done` before starting dashboard |
+| DB stored at `/root/siem.db` | Running with sudo expands `~` to `/root` | Expected behaviour — `sudo python siem.py report` to query it |
 
 ---
 
@@ -556,11 +571,9 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 git checkout -b feature/new-rule
 # → add rule function to rules/definitions.py
 # → register {"id": "R016", "name": "...", "severity": "...", "fn": ...} in RULES
-# → test with: python siem.py analyze --rules R016
+# → test with: sudo python siem.py analyze --rules R016
 # → open a pull request
 ```
-
-Each rule must include: unique ID, descriptive name, severity level, clear docstring, and deduplication logic.
 
 ---
 

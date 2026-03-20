@@ -18,7 +18,7 @@
 <br/>
 
 > **A fully local, high-performance SIEM built for real-world SOC operations.**
-> **45,437 compressed log files · 40M+ rows · 8 SOC views · 15 detection rules · Dark analyst dashboard.**
+> **40M+ rows · 8 SOC views · 15 detection rules · 30+ REST APIs · Dark analyst dashboard.**
 
 <br/>
 
@@ -32,10 +32,10 @@
 
 **SentinelEye** is a lightweight, purpose-built SIEM (Security Information and Event Management) platform developed by the **ISO Security Team** at the **Indian Institute of Science, Bangalore**. It processes compressed log archives from enterprise network infrastructure and turns raw log data into actionable threat intelligence.
 
-Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall deployment — **45,437 `.gz` files** across firewalls, DNS servers, RADIUS authenticators, and DHCP servers — ingesting **40M+ parsed rows** into a fully local SQLite database.
+Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall deployment — covering firewalls, DNS servers, RADIUS authenticators, and DHCP servers — ingesting **40M+ parsed rows** into a fully local SQLite database.
 
 ```
-🔥 45,437 files  ·  40M+ rows  ·  15 rules  ·  8 SOC views  ·  30+ REST APIs  ·  100% local
+🔥 40M+ rows  ·  15 rules  ·  8 SOC views  ·  30+ REST APIs  ·  100% local
 ```
 
 ---
@@ -65,30 +65,28 @@ Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall de
 ```
 /mnt/
 ├── Firewall-Logs/Firewall-Logs/
-│   ├── Firewall/                    ← Allow/Deny rules            —  4,806 files
-│   ├── IPS/                         ← Intrusion Prevention         —  1,600 files
-│   ├── Advanced_Threat_Protection/  ← C2 / ATP / Malware           —    792 files
-│   ├── Content_Filtering/           ← HTTP · App Filter · Web      —  1,676 files
-│   ├── Anti_Virus/                  ← HTTP/FTP/SMTP AV hits        —  2,400 files
-│   ├── Anti_Spam/                   ← SMTP spam blocks             —    800 files
-│   ├── Event/                       ← CLI/GUI/DHCP/IPSec/VPN/HA    —  7,487 files
-│   ├── SD-WAN/                      ← Profile/Route/SLA            —  2,253 files
-│   ├── Web_Server_Protection/       ← WAF events                   —    829 files
-│   └── Mac_IP/                      ← MAC↔IP binding history       —  7,299 files
+│   ├── Firewall/                    ← Allow/Deny rules
+│   ├── IPS/                         ← Intrusion Prevention
+│   ├── Advanced_Threat_Protection/  ← C2 / ATP / Malware
+│   ├── Content_Filtering/           ← HTTP · App Filter · Web
+│   ├── Anti_Virus/                  ← HTTP/FTP/SMTP AV hits
+│   ├── Anti_Spam/                   ← SMTP spam blocks
+│   ├── Event/                       ← CLI/GUI/DHCP/IPSec/VPN/HA
+│   ├── SD-WAN/                      ← Profile/Route/SLA
+│   ├── Web_Server_Protection/       ← WAF events
+│   └── Mac_IP/                      ← MAC↔IP binding history
 ├── iDNS-Logs/
-│   ├── idns1/                       ← BIND9 primary DNS            —  3,401 files
-│   └── idns2/                       ← BIND9 secondary DNS          —  3,167 files
+│   ├── idns1/                       ← BIND9 primary DNS
+│   └── idns2/                       ← BIND9 secondary DNS
 └── Radius-Logs/
-    ├── primary-radius/              ← FreeRADIUS auth              —  2,874 files
-    ├── secondary-radius/            ← FreeRADIUS auth              —  1,277 files
-    ├── primary-dhcp/                ← ISC dhcpd leases             —  2,703 files
-    └── secondary-dhcp/             ← ISC dhcpd leases             —  1,273 files
-                                                          ────────────────────────
-                                                          Total:      45,437 files
+    ├── primary-radius/              ← FreeRADIUS auth
+    ├── secondary-radius/            ← FreeRADIUS auth
+    ├── primary-dhcp/                ← ISC dhcpd leases
+    └── secondary-dhcp/              ← ISC dhcpd leases
 ```
 
-> **Storage reality:** The full dataset is ~4.5 TB compressed (3.7 TB firewall + 786 GB DNS + 65 GB RADIUS/DHCP).
-> Ingesting everything would require 10–22 TB of free disk and 3–10 days of runtime.
+> **Storage reality:** The full dataset spans several terabytes of compressed logs across firewall, DNS, and RADIUS/DHCP sources.
+> Ingesting everything requires significant disk space and runtime.
 > **Use the `--since` flag (recommended) to ingest only the last 30 days** — fast, practical, and sufficient for SOC work.
 
 ---
@@ -98,8 +96,7 @@ Built on actual IISc production logs from a Sophos XG/XGS enterprise firewall de
 ### Prerequisites
 ```
 Python 3.10+   pip   NFS mount at /mnt   sudo access (NFS paths need root)
-                                        _(edit config.py to change paths)_
-
+                                        (edit config.py to change paths)
 ```
 
 > **Why sudo?** The `/mnt` NFS mount paths are owned by root. Without sudo, the ingester finds 0 files.
@@ -122,7 +119,7 @@ pip install flask tabulate
 > - Run **one ingestion command at a time**. Wait for `[+] Done` before running the next.
 > - Never press Ctrl+C during ingestion — it can corrupt the DB.
 > - Use **`sudo`** so the ingester can read the NFS-mounted `/mnt` paths.
-> - Use **`--since`** to limit ingestion to recent logs — the full dataset is 4.5 TB.
+> - Use **`--since`** to limit ingestion to recent logs — the full dataset is very large.
 
 ---
 
@@ -139,7 +136,7 @@ Expected output:
 
 ### Step 2 — Ingest log sources (recommended: last 30 days only)
 
-> 💡 **The `--since` flag is the most important option.** Without it the ingester will try to process all 45,437 files (4.5 TB). With it, only files modified after that date are processed — typically 200–600 files, completing in minutes not days.
+> 💡 **The `--since` flag is the most important option.** Without it the ingester will try to process the entire archive. With it, only files modified after that date are processed — typically completing in minutes.
 
 **Firewall** — start here, largest source:
 ```bash
@@ -156,7 +153,7 @@ Wait, then **DHCP**:
 sudo python siem.py ingest --source dhcp --since 2025-02-17 --workers 4
 ```
 
-**DNS (optional — 6,600 files, slowest source):**
+**DNS (optional — slowest source):**
 ```bash
 # Do this last. DNS adds query volume data but is not required for core SOC work.
 sudo python siem.py ingest --source dns --since 2025-02-17 --workers 4
@@ -183,7 +180,7 @@ You will see:
 ║      SentinelEye — Live Ingestion Monitor            ║
 ║      Indian Institute of Science | ISO Security      ║
 ╠══════════════════════════════════════════════════════╣
-║  Files ingested :     420 / 45,437           0.9%   ║
+║  Files ingested :     420              in progress  ║
 ║  Progress       : [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]  ║
 ╠══════════════════════════════════════════════════════╣
 ║  Firewall events:      812,330                       ║
@@ -195,8 +192,6 @@ You will see:
 ║  Ingest rate    :    85,000 rows/sec                 ║
 ╚══════════════════════════════════════════════════════╝
 ```
-
-> The progress percentage shows out of total 45,437 files. When using `--since`, only a small fraction of files are actually processed — the counter will reach 100% quickly.
 
 ---
 
@@ -237,6 +232,21 @@ Then open your browser: **`http://localhost:5000`**
 sudo python siem.py report
 ```
 
+Expected output:
+```
+╔══════════════════════════════════════════════════════╗
+║     SentinelEye SIEM  —  Summary Report              ║
+║     Indian Institute of Science, Bangalore           ║
+╚══════════════════════════════════════════════════════╝
+  Total events ingested  :   27,000,000+
+  DNS queries            :   40,000,000+
+  RADIUS auth records    :      500,000+
+  DHCP events            :      300,000+
+  Open alerts            :          345
+  Critical alerts        :           14
+  Denied connections     :   27,000,000+
+```
+
 ---
 
 ### Step 7 — Incremental daily update
@@ -261,9 +271,6 @@ Already-ingested files are automatically skipped (`SKIP_INGESTED = True` in `con
 ║      SentinelEye — Live Ingestion Monitor            ║
 ║      Indian Institute of Science | ISO Security      ║
 ╠══════════════════════════════════════════════════════╣
-║  Files ingested :  18,200 / 45,437          40.0%   ║
-║  Progress       : [████████████░░░░░░░░░░░░░░░░░░]  ║
-╠══════════════════════════════════════════════════════╣
 ║  Firewall events:   27,362,000  ✅                   ║
 ║  DNS queries    :   40,018,000  ✅                   ║
 ║  RADIUS auth    :      487,210                       ║
@@ -280,7 +287,7 @@ Already-ingested files are automatically skipped (`SKIP_INGESTED = True` in `con
 
 ## 🖥️ Dashboard Views
 
-All 8 views share a **global date range filter** in the top bar.
+All 8 views share a **global date range filter** in the top bar. The alert badge auto-refreshes every 60 seconds.
 
 | # | View | Sidebar | What You Get |
 |---|------|---------|-------------|
@@ -294,10 +301,11 @@ All 8 views share a **global date range filter** in the top bar.
 | 8 | **Event Hunt** | 🔍 | 10-field advanced search · src/dst IP · port · log type · action · username · protocol · keyword · date range · CSV/JSON export |
 
 ### 🔍 IP Pivot — Click any IP anywhere
-Opens a 6-tab investigation modal:
+Opens a 6-tab investigation modal instantly:
 ```
 [ Firewall Events ] [ DNS Queries ] [ RADIUS Auth ] [ DHCP Leases ] [ Alerts ] [ Threats ]
 ```
+Shows complete cross-source history for that IP in one place.
 
 ---
 
@@ -352,6 +360,7 @@ def r016_suspicious_useragent(conn):
 ```
 
 Then run `sudo python siem.py analyze` to execute your new rule.
+Each rule must include: unique ID, descriptive name, severity level, clear docstring, and deduplication logic.
 
 ---
 
@@ -359,7 +368,7 @@ Then run `sudo python siem.py analyze` to execute your new rule.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│               NFS Mount (/mnt) — 45,437 .gz files                   │
+│               NFS Mount (/mnt) — compressed .gz log archives        │
 │   Firewall .gz  DNS .gz  RADIUS .gz  DHCP .gz  Mac_IP .gz           │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
@@ -437,9 +446,6 @@ sudo python siem.py ingest --source radius   --since 2025-02-17 --workers 4
 sudo python siem.py ingest --source dhcp     --since 2025-02-17 --workers 4
 sudo python siem.py ingest --source dns      --since 2025-02-17 --workers 4  # slowest, do last
 
-# Without --since ingests ALL files (4.5 TB, takes days — not recommended)
-sudo python siem.py ingest --source firewall --workers 4
-
 # Preview files without ingesting
 sudo python siem.py ingest --source firewall --since 2025-02-17 --dry-run
 
@@ -513,15 +519,15 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 
 ## 🗄️ Database Schema
 
-| Table | Rows (full ingest) | Key Columns |
-|-------|-------------------|-------------|
-| `events` | 27,362,000+ | `ts · log_type · log_component · src_ip · dst_ip · action · threat_name · username` |
-| `dns_queries` | 40,018,000+ | `ts · client_ip · query_name · query_type · server_ip` |
-| `radius_auth` | ~500,000+ | `ts · username · nas_ip · client_ip · result` |
-| `dhcp_leases` | ~300,000+ | `ts · event_type · ip_address · mac_address · hostname` |
-| `mac_ip_map` | ~2,000,000+ | `ts · mac_address · ip_address · interface` |
-| `alerts` | 345+ | `rule_id · severity · src_ip · description · acknowledged · ack_by` |
-| `ingested_files` | 45,437 | `filepath · log_source · rows_loaded · loaded_at` |
+| Table | Key Columns |
+|-------|-------------|
+| `events` | `ts · log_type · log_component · src_ip · dst_ip · action · threat_name · username` |
+| `dns_queries` | `ts · client_ip · query_name · query_type · server_ip` |
+| `radius_auth` | `ts · username · nas_ip · client_ip · result` |
+| `dhcp_leases` | `ts · event_type · ip_address · mac_address · hostname` |
+| `mac_ip_map` | `ts · mac_address · ip_address · interface` |
+| `alerts` | `rule_id · severity · src_ip · description · acknowledged · ack_by` |
+| `ingested_files` | `filepath · log_source · rows_loaded · loaded_at` |
 
 ---
 
@@ -529,14 +535,13 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 
 | Metric | Value |
 |--------|-------|
-| Total log files | **45,437** `.gz` archives |
-| Total compressed size | **~4.5 TB** (3.7 TB FW + 786 GB DNS + 65 GB RADIUS/DHCP) |
 | Firewall events (full ingest) | **27,362,000+** |
 | DNS queries (full ingest) | **40,018,000+** |
 | Ingestion speed | 50,000 – 100,000 rows/sec over NFS |
 | Recommended ingest window | **Last 30 days** via `--since` flag |
 | DB engine | SQLite WAL · tested beyond 70M rows |
 | Dashboard API response | < 500ms — all queries index-backed |
+| REST API endpoints | 30+ secure endpoints |
 
 ---
 
@@ -559,9 +564,9 @@ LARGE_TRANSFER_BYTES       = 100_000_000  # 100 MB for R008
 | `database is locked` | Multiple processes writing simultaneously | `sudo pkill -9 -f python` → `sudo rm ~/siem.db-wal ~/siem.db-shm` → restart |
 | `database disk image is malformed` | Ctrl+C during write corrupted the DB | `sudo rm ~/siem.db ~/siem.db-wal ~/siem.db-shm` → `sudo python siem.py init` → re-ingest |
 | `DNS/RADIUS/DHCP = 0` | DB was locked when those sources ran | Re-run: `sudo python siem.py ingest --source dns --workers 4` |
-| Ingestion very slow | Processing all 45,437 files without `--since` | Always use `--since YYYY-MM-DD` to limit scope |
+| Ingestion very slow | Processing full archive without `--since` | Always use `--since YYYY-MM-DD` to limit scope |
 | Dashboard shows 0 events | Ingestion not yet complete | Wait for `[+] Done` before starting dashboard |
-| DB stored at `/root/siem.db` | Running with sudo expands `~` to `/root` | Expected behaviour — `sudo python siem.py report` to query it |
+| DB stored at `/root/siem.db` | Running with sudo expands `~` to `/root` | Expected behaviour — use `sudo python siem.py report` to query it |
 
 ---
 
@@ -599,7 +604,7 @@ Free to use, modify, and distribute with attribution.
 [![GitHub](https://img.shields.io/badge/GitHub-KIRAN--KUMAR--K3-181717?style=flat&logo=github)](https://github.com/KIRAN-KUMAR-K3)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-kiran--kumar--k3-0077B5?style=flat&logo=linkedin)](https://linkedin.com/in/kiran-kumar-k3)
 [![Blog](https://img.shields.io/badge/Blog-kirankumark3.blogspot.com-FF5722?style=flat&logo=blogger)](https://kirankumark3.blogspot.com)
-[![BugCrowd](https://img.shields.io/badge/BugCrowd-KIRAN--KUMAR--K-F26822?style=flat&logo=bugcrowd)](https://bugcrowd.com/h/KIRAN-KUMAR-K)
+[![BugCrowd](https://img.shields.io/badge/BugCrowd-KIRAN--KUMAR--K-F26822?style=flat&logo=bugcrowd)](https://bugcrowd.com/h/KIRAN-KUMAR-K)]
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d47a1,50:1a1f35,100:0d1117&height=100&section=footer" />
 
